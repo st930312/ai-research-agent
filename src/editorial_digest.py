@@ -28,11 +28,26 @@ CATEGORIES = {
     "finance": ("📊 金融科技 / 半導體", 1, 0x64748B),
 }
 HN_QUERIES = [
-    ("ai", "LLM agent model launch"),
-    ("dev", "programming developer tools open source"),
-    ("tech", "technology chips semiconductor product launch"),
-    ("finance", "semiconductor chip earnings fintech"),
+    ("ai", "AI"),
+    ("dev", "software"),
+    ("tech", "semiconductor"),
+    ("finance", "fintech"),
 ]
+
+def is_recent(row, days=7):
+    """Only confidently dated current news may enter a latest-news digest."""
+    stamp = row.get("published_at")
+    if not isinstance(stamp, str) or not stamp:
+        return False
+    try:
+        published = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        if published.tzinfo is None:
+            published = published.replace(tzinfo=timezone.utc)
+        age = datetime.now(timezone.utc) - published
+        return timedelta(0) <= age <= timedelta(days=days)
+    except ValueError:
+        return False
+
 MAX_CANDIDATES = 60
 MAX_SELECT = 20
 DEFAULT_SELECT = 15
@@ -47,7 +62,7 @@ def collect_candidates():
     counts = {}
     for kind, query in HN_QUERIES:
         try:
-            found = hn_search(query, limit=6)
+            found = [x for x in hn_search(query, limit=20) if is_recent(x, 7)][:6]
             counts[f"hn_{kind}"] = len(found)
             for row in found:
                 row["suggested_category"] = kind
@@ -66,7 +81,7 @@ def collect_candidates():
             counts[f"github_{kind}"] = 0
             print(f"COLLECT_WARN github_{kind} {type(exc).__name__}", flush=True)
     rss_rows, rss_counts = rss_discover(limit=5)
-    rows.extend(rss_rows)
+    rows.extend(x for x in rss_rows if is_recent(x, 5))
     counts.update({"rss_" + name: count for name, count in rss_counts.items()})
     rows = dedup(rows)[:MAX_CANDIDATES]
     for index, row in enumerate(rows, 1):

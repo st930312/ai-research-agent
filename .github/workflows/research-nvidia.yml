@@ -1,0 +1,40 @@
+name: NVIDIA Real Research - One-Time Smoke Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/research-nvidia.yml'
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: Research topic
+        type: choice
+        options: [ai, dev, tech, finance]
+        default: ai
+
+permissions:
+  contents: read
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Collect five HN articles and call NVIDIA once
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          RESEARCH_TOPIC: ${{ inputs.topic || 'ai' }}
+        run: python -m src.research_smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nvidia-research-brief
+          path: output/
+          retention-days: 7

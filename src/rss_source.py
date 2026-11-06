@@ -11,6 +11,9 @@ FEEDS = {
         ("Ars Technica AI", "https://arstechnica.com/ai/feed/"),
         ("TechCrunch AI", "https://techcrunch.com/category/artificial-intelligence/feed/"),
     ],
+    "dev": [
+        ("Ars Technica Technology Lab", "https://feeds.arstechnica.com/arstechnica/technology-lab"),
+    ],
     "tech": [
         ("The Verge", "https://www.theverge.com/rss/index.xml"),
         ("Ars Technica Science", "https://feeds.arstechnica.com/arstechnica/science"),

@@ -48,6 +48,21 @@ class EditorialDigestTests(unittest.TestCase):
         self.assertTrue(all(len(x["value"]) <= 1024 for x in embeds[0]["fields"]))
         self.assertEqual(len(e.split_embed_messages(embeds)), 1)
 
+    def test_hn_latest_uses_date_filter(self):
+        from datetime import datetime, timezone
+        def fake_fetch(url):
+            self.assertIn("search_by_date?", url)
+            self.assertIn("numericFilters=", url)
+            return {"hits": [{
+                "title": "New research",
+                "url": "https://example.org/news",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "points": 30,
+            }]}
+        rows = e.hn_latest("AI", fetcher=fake_fetch)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["source"], "hackernews")
+
     def test_old_news_excluded(self):
         from datetime import datetime, timezone
         self.assertFalse(e.is_recent({"published_at": "2011-01-01T00:00:00Z"}))

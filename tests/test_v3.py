@@ -57,10 +57,28 @@ class V3Tests(unittest.TestCase):
         ]
         messages = format_wide_messages(rows, CATEGORIES)
         self.assertGreaterEqual(len(messages), 3)
-        self.assertTrue(all(msg.startswith("\u200b\n\n") and msg.endswith("\n\n\u200b") for msg in messages))
+        self.assertTrue(messages[0].startswith("\u200b\n\n"))
+        self.assertTrue(any(msg.endswith("\n\n\u200b") for msg in messages))
         self.assertTrue(all(len(msg) < 2000 for msg in messages))
         self.assertTrue(any("## 01｜First story" in msg for msg in messages))
         self.assertTrue(any("# 🎮" in msg for msg in messages))
+
+    def test_same_category_continuations_have_one_heading_without_spacers(self):
+        rows = [{
+            "category": "tech", "title": f"Technology story {n}",
+            "url": f"https://example.org/story-{n}",
+            "ai_description": "技術敘述" * 115,
+            "body_status": "ok",
+        } for n in range(1, 5)]
+        messages = format_wide_messages(rows, CATEGORIES)
+        category_messages = [m for m in messages if "Technology story" in m or "# 🚀" in m]
+        self.assertGreater(len(category_messages), 1)
+        self.assertEqual(sum(m.count("# 🚀 科技產業") for m in messages), 1)
+        self.assertTrue(category_messages[0].startswith("\\u200b\\n\\n# 🚀"))
+        self.assertFalse(category_messages[0].endswith("\\n\\n\\u200b"))
+        self.assertFalse(category_messages[1].startswith("\\u200b\\n\\n"))
+        self.assertTrue(category_messages[-1].endswith("\\n\\n\\u200b"))
+        self.assertEqual(sum(m.count("🔗 來源：") for m in category_messages), 4)
 
     def test_long_article_is_not_discarded(self):
         long = "很長的文章" * 500

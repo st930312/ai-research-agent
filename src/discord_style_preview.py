@@ -59,7 +59,10 @@ def make_messages():
         if len(message) > 1950:
             raise ValueError(f"Too long for Discord: {category} ({len(message)} chars)")
         results.append(message)
-    # Invisible non-empty guard keeps leading/trailing blank lines in Discord.\n    # A plain newline at the edge may be trimmed by the Discord client.\n    return ["\\u200b\\n\\n" + message + "\\n\\n\\u200b" for message in results]\n\ndef main():
+    # Discord may trim plain edge newlines; invisible guards preserve spacing.
+    return ["\u200b\n\n" + message + "\n\n\u200b" for message in results]
+
+def main():
     url = os.environ.get("DISCORD_WEBHOOK_URL", "")
     parts = urlsplit(url)
     if parts.scheme != "https" or parts.hostname not in {

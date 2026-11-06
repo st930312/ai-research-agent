@@ -54,6 +54,11 @@ def split_long_article(piece, limit):
     return parts
 
 def format_wide_messages(articles, categories):
+    """Use one heading per category; keep same-category chunks visually contiguous.
+
+    Discord limits content to 2,000 characters. Split at article boundaries
+    whenever possible, with no repeated heading/outer spacer within a category.
+    """
     total = len(articles)
     summary = (
         "# 🛰️ 今日科技快訊\n"
@@ -66,23 +71,44 @@ def format_wide_messages(articles, categories):
         if not group:
             continue
         heading_text = f"# {heading}\n\n"
-        current = heading_text
+        # The leading spacer appears only at a NEW category boundary.
+        current = SPACER + heading_text
         for index, row in enumerate(group, 1):
-            piece = article_text(row, index)
-            joiner = "\n\n━━━━━━━━━━━━━━━━\n\n" if current != heading_text else ""
-            if len(current) + len(joiner) + len(piece) + len(SPACER) + len(ENDING) <= MAX_CONTENT:
-                current += joiner + piece
-                continue
-            if current != heading_text:
-                messages.append(SPACER + current + ENDING)
-            current = heading_text
-            for segment in split_long_article(piece, MAX_CONTENT - len(heading_text) - len(SPACER) - len(ENDING)):
-                if current != heading_text:
-                    messages.append(SPACER + current + ENDING)
-                    current = heading_text
-                current += segment
-        if current != heading_text:
-            messages.append(SPACER + current + ENDING)
+            article = article_text(row, index)
+            joiner = "\n\n━━━━━━━━━━━━━━━━\n\n" if index > 1 else ""
+            remaining = joiner + article
+            while remaining:
+                # Keep the source URL with its article when it fits; don't chop
+                # a normal 200-500 character article into separate messages.
+                capacity = MAX_CONTENT - len(current) - len(ENDING)
+                if len(remaining) <= capacity:
+                    current += remaining
+                    remaining = ""
+                    break
+                if current.strip("\u200b\n "):
+                    # The current message already contains an article: finish
+                    # it without trailing inter-category padding.
+                    # For a long single article, the continuation below splits it.
+                    if current != SPACER + heading_text:
+                        messages.append(current)
+                        current = ""
+                        remaining = remaining.lstrip("\n")
+                        continue
+                capacity = MAX_CONTENT - len(current) - len(ENDING)
+                cut = remaining.rfind("\n\n", 200, capacity)
+                if cut == -1:
+                    cut = remaining.rfind("\n", 200, capacity)
+                if cut == -1:
+                    cut = capacity
+                current += remaining[:cut]
+                messages.append(current)
+                current = ""
+                remaining = remaining[cut:].lstrip("\n")
+        # Only the end of the entire category gets the closing blank lines.
+        if current:
+            messages.append(current + ENDING)
+        elif messages:
+            messages[-1] += ENDING
     if any(len(message) > 2000 for message in messages):
         raise ValueError("Discord message exceeds 2000 characters")
     return messages

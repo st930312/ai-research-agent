@@ -1,3 +1,4 @@
+# Verify date-sorted HN and 5-category collection without AI requests.
 # Verify dated RSS coverage, category embeds, and offline tests.
 # Re-run offline editorial tests after fixing fenced JSON test.
 name: Editorial Tech Briefing - Manual Preview

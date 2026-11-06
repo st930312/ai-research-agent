@@ -1,4 +1,4 @@
-name: NVIDIA Real Research - One-Time Smoke Test
+name: NVIDIA Enriched Research - One-Time Smoke Test
 
 on:
   push:
@@ -27,7 +27,7 @@ jobs:
           python-version: '3.12'
       - name: Check unit tests
         run: python -m unittest discover -s tests -v
-      - name: Collect HN and GitHub repos; call NVIDIA once
+      - name: Collect sources, enrich excerpts, and call NVIDIA once
         env:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           GH_TOKEN: ${{ github.token }}

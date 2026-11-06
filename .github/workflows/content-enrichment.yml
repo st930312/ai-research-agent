@@ -1,3 +1,4 @@
+# Retest JSON/base64 GitHub README decoding.
 name: Content Enrichment - Manual Smoke Test
 on:
   push:

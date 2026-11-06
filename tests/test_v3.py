@@ -74,10 +74,10 @@ class V3Tests(unittest.TestCase):
         category_messages = [m for m in messages if "Technology story" in m or "# 🚀" in m]
         self.assertGreater(len(category_messages), 1)
         self.assertEqual(sum(m.count("# 🚀 科技產業") for m in messages), 1)
-        self.assertTrue(category_messages[0].startswith("\\u200b\\n\\n# 🚀"))
-        self.assertFalse(category_messages[0].endswith("\\n\\n\\u200b"))
-        self.assertFalse(category_messages[1].startswith("\\u200b\\n\\n"))
-        self.assertTrue(category_messages[-1].endswith("\\n\\n\\u200b"))
+        self.assertTrue(category_messages[0].startswith("\u200b\n\n# 🚀"))
+        self.assertFalse(category_messages[0].endswith("\n\n\u200b"))
+        self.assertFalse(category_messages[1].startswith("\u200b\n\n"))
+        self.assertTrue(category_messages[-1].endswith("\n\n\u200b"))
         self.assertEqual(sum(m.count("🔗 來源：") for m in category_messages), 4)
 
     def test_long_article_is_not_discarded(self):

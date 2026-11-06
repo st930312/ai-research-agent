@@ -18,14 +18,17 @@ from datetime import datetime, timedelta, timezone
 from .core import dedup, fetch_json
 from .github_source import github_discover
 from .rss_source import rss_discover
+from .v3_sources import github_releases, event_dedup
+from .wide_discord import format_wide_messages, send_wide_messages
 from .content_enrichment import enrich
 from .tech_digest import API, MODEL
 
 CATEGORIES = {
-    "ai": ("🤖 AI / LLM / Agent", 5, 0x3B82F6),
+    "ai": ("🤖 AI / LLM / Agent", 4, 0x3B82F6),
     "github": ("🧰 GitHub 開源推薦", 2, 0x10B981),
-    "dev": ("🛠️ 軟體工程 / DevOps", 3, 0x8B5CF6),
+    "dev": ("🛠️ 軟體工程 / DevOps", 2, 0x8B5CF6),
     "tech": ("🚀 科技產業 / 新技術", 4, 0xF59E0B),
+    "gaming": ("🎮 電玩 / 遊戲產業", 2, 0xEC4899),
     "finance": ("📊 金融科技 / 半導體", 1, 0x64748B),
 }
 HN_QUERIES = [
@@ -49,7 +52,7 @@ def is_recent(row, days=7):
     except ValueError:
         return False
 
-MAX_CANDIDATES = 60
+MAX_CANDIDATES = 100
 MAX_SELECT = 20
 DEFAULT_SELECT = 15
 MAX_API_CALLS = 7
@@ -105,7 +108,10 @@ def collect_candidates():
     rss_rows, rss_counts = rss_discover(limit=5)
     rows.extend(x for x in rss_rows if is_recent(x, 5))
     counts.update({"rss_" + name: count for name, count in rss_counts.items()})
-    rows = dedup(rows)[:MAX_CANDIDATES]
+    release_rows, release_counts = github_releases(limit=6)
+    rows.extend(x for x in release_rows if is_recent(x, 14))
+    counts.update({"release_" + name: count for name, count in release_counts.items()})
+    rows = event_dedup(dedup(rows))[:MAX_CANDIDATES]
     for index, row in enumerate(rows, 1):
         row["id"] = index
     return rows, counts
@@ -172,6 +178,7 @@ def shortlist(candidates, metrics, target=DEFAULT_SELECT):
         "published_at": row.get("published_at"),
         "score": row.get("score"),
         "suggested_category": row.get("suggested_category"),
+        "publisher": row.get("publisher"),
     } for row in candidates]
     constraints = {key: cat[1] for key, cat in CATEGORIES.items()}
     prompt = (
@@ -180,7 +187,7 @@ def shortlist(candidates, metrics, target=DEFAULT_SELECT):
         "不得猜測未提供的事實；不要將舊消息冒充今天發布。"
         "輸出嚴格 JSON 物件，格式："
         '{"selected":[{"id":1,"category":"ai","importance":3}, ...]}。'
-        "category 僅可使用 ai/github/dev/tech/finance，importance 1～3。"
+        "category 僅可使用 ai/github/dev/tech/gaming/finance，importance 1～3。"
         f"最多挑 {target} 筆，預期分類配額 {json.dumps(constraints)}，"
         "但沒有值得報導的內容時應少選，且 github 最多 2 則。"
         "至少嘗試保留 github 真正有價值的候選；不要推薦同一事件的重複報導。"
@@ -247,7 +254,12 @@ def shortlist(candidates, metrics, target=DEFAULT_SELECT):
     return chosen
 
 def draft(selected, metrics):
-    enriched = [enrich(row) for row in selected]
+    enriched = []
+    for row in selected:
+        if row.get("source") == "github_release" and row.get("body_excerpt"):
+            enriched.append({**row, "body_status": "ok", "body_kind": "github_release_notes"})
+        else:
+            enriched.append(enrich(row))
     drafted = []
     for i in range(0, len(enriched), 3):
         batch = enriched[i:i + 3]
@@ -257,6 +269,7 @@ def draft(selected, metrics):
             "published_at": row.get("published_at"),
             "description": (row.get("description") or "")[:300],
             "body_status": row.get("body_status"),
+            "publisher": row.get("publisher"),
             "excerpt": (row.get("body_excerpt") or "")[:MAX_ARTICLE_EXCERPT]
         } for row in batch]
         instruction = (
@@ -383,14 +396,16 @@ def main():
     selected = shortlist(candidates, metrics)
     print(f"SELECTED={len(selected)} BY_CATEGORY={dict(Counter(x['category'] for x in selected))}", flush=True)
     articles = draft(selected, metrics)
-    embeds = build_embeds(articles)
-    preview(embeds)
+    messages = format_wide_messages(articles, CATEGORIES)
+    for i, message in enumerate(messages, 1):
+        print(f"===== DISCORD WIDE PREVIEW {i}/{len(messages)} =====")
+        print(message)
     print("METRICS=" + json.dumps({
         **metrics, "enriched_success": sum(a.get("body_status") == "ok" for a in articles),
-        "drafted": len(articles), "embed_messages": len(split_embed_messages(embeds)),
+        "drafted": len(articles), "wide_messages": len(messages),
     }, ensure_ascii=False), flush=True)
     if os.getenv("SEND_DISCORD") == "true":
-        post_discord(embeds)
+        send_wide_messages(messages)
         print("DISCORD_SENT=true", flush=True)
     else:
         print("DISCORD_SENT=false (preview)", flush=True)

@@ -291,20 +291,22 @@ def build_embeds(articles):
     return embeds
 
 def split_embed_messages(embeds):
+    """One Discord message per category; split oversized categories if needed."""
     messages = []
-    current = []
-    chars = 0
     for embed in embeds:
-        length = len(embed["title"]) + sum(
-            len(field["name"]) + len(field["value"]) for field in embed["fields"])
-        if current and (len(current) >= MAX_DISCORD_EMBEDS or chars + length > MAX_DISCORD_TOTAL_CHARS):
-            messages.append(current)
-            current = []
-            chars = 0
-        current.append(embed)
-        chars += length
-    if current:
-        messages.append(current)
+        fields = embed.get("fields", [])
+        part = []
+        total = len(embed.get("title", ""))
+        for field in fields:
+            length = len(field["name"]) + len(field["value"])
+            if part and total + length > MAX_DISCORD_TOTAL_CHARS:
+                messages.append([{**embed, "fields": part}])
+                part = []
+                total = len(embed.get("title", ""))
+            part.append(field)
+            total += length
+        if part:
+            messages.append([{**embed, "fields": part}])
     return messages
 
 def post_discord(embeds):

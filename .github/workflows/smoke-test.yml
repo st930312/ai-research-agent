@@ -1,0 +1,45 @@
+name: AI Research - Manual Smoke Test
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: Research topic
+        type: choice
+        options: [ai, dev, tech, finance]
+        default: ai
+      live:
+        description: Collect Hacker News / optional SearXNG
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Unit tests (no API cost)
+        run: python -m unittest discover -s tests -v
+      - name: Collect and report (no AI API requests)
+        env:
+          SEARXNG_URL: ${{ vars.SEARXNG_URL }}
+          RESEARCH_TOPIC: ${{ inputs.topic }}
+          RESEARCH_LIVE: ${{ inputs.live }}
+        run: |
+          if [ "$RESEARCH_LIVE" = "true" ]; then
+            python -m src.main --topic "$RESEARCH_TOPIC" --live
+          else
+            python -m src.main --topic "$RESEARCH_TOPIC"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: research-smoke-output
+          path: output/
+          retention-days: 7

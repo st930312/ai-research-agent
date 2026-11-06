@@ -1,0 +1,43 @@
+name: Technology Digest - One-Time Preview
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tech-digest.yml'
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: News category
+        type: choice
+        options: [ai, dev, tech, finance]
+        default: ai
+      send_discord:
+        description: Send to Discord after preview (requires DISCORD_WEBHOOK_URL)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  tech-digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Collect news and generate one NVIDIA digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          ENABLE_REAL_AI: 'true'
+          SEND_DISCORD: ${{ inputs.send_discord == true && 'true' || 'false' }}
+          RESEARCH_TOPIC: ${{ inputs.topic || 'ai' }}
+        run: python -m src.tech_digest
+# No schedule, no saved reports, no database, no artifacts.

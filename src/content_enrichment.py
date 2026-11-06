@@ -100,11 +100,14 @@ def enrich(item, fetcher=get_public_content):
             if os.getenv("GH_TOKEN"):
                 auth["Authorization"] = "Bearer " + os.environ["GH_TOKEN"]
             content, ctype = fetcher(api_url, {"Accept": "application/vnd.github.raw+json", **auth})
-            if "json" in ctype:
+            if "json" in ctype and content.lstrip().startswith("{"):
                 doc = json.loads(content)
                 if doc.get("encoding") != "base64" or not doc.get("content"):
                     raise ValueError("Unsupported GitHub README response")
                 content = base64.b64decode(doc["content"]).decode("utf-8", errors="replace")
+            # GitHub's raw media type may return Markdown with a +json MIME label.
+            if content.lstrip().lower().startswith("<!doctype html"):
+                raise ValueError("Unexpected HTML response")
             item["body_excerpt"] = content[:MAX_TEXT]
             item["body_kind"] = "github_readme"
         else:

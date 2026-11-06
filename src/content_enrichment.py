@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import html
+import base64
 import ipaddress
 import json
 import os
@@ -76,7 +77,7 @@ def get_public_content(url, headers=None):
     opener = urllib.request.build_opener(NoRedirect())
     with opener.open(req, timeout=12) as response:
         ctype = response.headers.get("Content-Type", "").lower()
-        if not any(x in ctype for x in ("text/html", "text/plain", "text/markdown", "application/octet-stream")):
+        if not any(x in ctype for x in ("text/html", "text/plain", "text/markdown", "application/octet-stream", "application/json")):
             raise ValueError("Unsupported content type")
         raw = response.read(MAX_BYTES + 1)
         if len(raw) > MAX_BYTES:
@@ -99,6 +100,11 @@ def enrich(item, fetcher=get_public_content):
             if os.getenv("GH_TOKEN"):
                 auth["Authorization"] = "Bearer " + os.environ["GH_TOKEN"]
             content, ctype = fetcher(api_url, {"Accept": "application/vnd.github.raw+json", **auth})
+            if "json" in ctype:
+                doc = json.loads(content)
+                if doc.get("encoding") != "base64" or not doc.get("content"):
+                    raise ValueError("Unsupported GitHub README response")
+                content = base64.b64decode(doc["content"]).decode("utf-8", errors="replace")
             item["body_excerpt"] = content[:MAX_TEXT]
             item["body_kind"] = "github_readme"
         else:

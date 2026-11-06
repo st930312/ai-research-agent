@@ -1,3 +1,4 @@
+# Verify both Markdown and Base64 forms of GitHub README.
 # Check vendor JSON media type handling for GitHub API.
 # Retest JSON/base64 GitHub README decoding.
 name: Content Enrichment - Manual Smoke Test

@@ -6,7 +6,7 @@ import urllib.request
 
 PROVIDERS = {
     "nvidia": ("NVIDIA_API_KEY", "https://integrate.api.nvidia.com/v1/chat/completions", "z-ai/glm-5.3-flash"),
-    "zai": ("ZAI_API_KEY", "https://open.bigmodel.cn/api/paas/v4/chat/completions", "glm-5.3-flash"),
+    "zai": ("ZAI_API_KEY", "https://api.z.ai/api/paas/v4/chat/completions", "glm-5.3-flash"),
 }
 
 def main():

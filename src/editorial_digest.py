@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 from .core import dedup, hn_search
 from .github_source import github_discover
+from .rss_source import rss_discover
 from .content_enrichment import enrich
 from .tech_digest import API, MODEL
 
@@ -46,7 +47,7 @@ def collect_candidates():
     counts = {}
     for kind, query in HN_QUERIES:
         try:
-            found = hn_search(query, limit=10)
+            found = hn_search(query, limit=6)
             counts[f"hn_{kind}"] = len(found)
             for row in found:
                 row["suggested_category"] = kind
@@ -56,7 +57,7 @@ def collect_candidates():
             print(f"COLLECT_WARN hn_{kind} {type(exc).__name__}", flush=True)
     for kind in ("ai", "dev", "tech", "finance"):
         try:
-            found = github_discover(kind, limit=5)
+            found = github_discover(kind, limit=4)
             counts[f"github_{kind}"] = len(found)
             for row in found:
                 row["suggested_category"] = "github" if kind == "ai" else kind
@@ -64,6 +65,9 @@ def collect_candidates():
         except Exception as exc:
             counts[f"github_{kind}"] = 0
             print(f"COLLECT_WARN github_{kind} {type(exc).__name__}", flush=True)
+    rss_rows, rss_counts = rss_discover(limit=5)
+    rows.extend(rss_rows)
+    counts.update({"rss_" + name: count for name, count in rss_counts.items()})
     rows = dedup(rows)[:MAX_CANDIDATES]
     for index, row in enumerate(rows, 1):
         row["id"] = index
@@ -166,8 +170,7 @@ def shortlist(candidates, metrics, target=DEFAULT_SELECT):
             continue
         if quota[category] >= constraints[category]:
             continue
-        if lookup[ident].get("source") == "github_search" and category != "github":
-            # GitHub projects belong in the open-source section.
+        if lookup[ident].get("source") == "github_search":
             category = "github"
             if quota[category] >= constraints[category]:
                 continue
@@ -176,8 +179,34 @@ def shortlist(candidates, metrics, target=DEFAULT_SELECT):
         seen.add(ident)
         if len(chosen) >= target:
             break
+    # Models may return only a few selections. Fill missing slots from the
+    # metadata pool, respecting categories and never inventing news entries.
+    # AI selections remain first; fallbacks are explicitly tracked below.
+    if len(chosen) < target:
+        remainder = [row for row in candidates if row["id"] not in seen]
+        recent = datetime.now(timezone.utc) - timedelta(days=10)
+        def priority(row):
+            when = row.get("published_at")
+            try:
+                date = datetime.fromisoformat(when.replace("Z", "+00:00"))
+                is_recent = date >= recent
+            except (AttributeError, ValueError, TypeError):
+                is_recent = False
+            return (int(is_recent), int(row.get("source") == "rss"),
+                    int(row.get("score") or 0))
+        remainder.sort(key=priority, reverse=True)
+        for row in remainder:
+            cat = "github" if row.get("source") == "github_search" else row.get("suggested_category")
+            if cat not in CATEGORIES or quota[cat] >= constraints[cat]:
+                continue
+            chosen.append({**row, "category": cat, "importance": 1,
+                           "selection_method": "metadata_backfill"})
+            quota[cat] += 1
+            seen.add(row["id"])
+            if len(chosen) >= target:
+                break
     if not chosen:
-        raise RuntimeError("AI selection returned no valid items")
+        raise RuntimeError("No usable selections")
     return chosen
 
 def draft(selected, metrics):

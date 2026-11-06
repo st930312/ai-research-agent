@@ -1,3 +1,4 @@
+# Third acceptance attempt: tolerant first-object JSON parser with added unit test.
 # Retry after bounded 180-second NVIDIA read timeout and latest gaming filter.
 name: V3 One-Time Live Discord Acceptance
 

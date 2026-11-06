@@ -1,3 +1,4 @@
+# Revalidate category continuation after spacing tests corrected.
 # Run offline tests for contiguous category continuation layout.
 # Recheck V3 source discovery, Discord long-story splitting, and all unit tests.
 name: V3 Technology Briefing - Manual

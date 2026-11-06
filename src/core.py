@@ -78,9 +78,9 @@ def dedup(items: list[dict]) -> list[dict]:
 def ask_llm(provider: str, prompt: str) -> str:
     """Strict opt-in. Never automatically fall back to a chargeable endpoint."""
     providers = {
-       'nvidia': ('NVIDIA_API_KEY', 'https://integrate.api.nvidia.com/v1/chat/completions', 'z-ai/glm-5.3-flash'),
-       'zhipu': ('ZHIPU_API_KEY', 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-                 os.getenv('ZHIPU_MODEL', 'glm-5.3-flash')),
+       'nvidia': ('NVIDIA_API_KEY', 'https://integrate.api.nvidia.com/v1/chat/completions', os.getenv('NVIDIA_MODEL', 'nvidia/nemotron-3-ultra-550b-a55b')),
+       'zhipu': ('ZAI_API_KEY', 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+                 os.getenv('ZAI_MODEL', 'glm-4.7-flash')),
     }
     if provider not in providers:
         raise ValueError('Provider must be nvidia or zhipu')

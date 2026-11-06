@@ -5,8 +5,8 @@ import urllib.error
 import urllib.request
 
 PROVIDERS = {
-    "nvidia": ("NVIDIA_API_KEY", "https://integrate.api.nvidia.com/v1/chat/completions", "z-ai/glm-5.3-flash"),
-    "zai": ("ZAI_API_KEY", "https://open.bigmodel.cn/api/paas/v4/chat/completions", "glm-5.3-flash"),
+    "nvidia": ("NVIDIA_API_KEY", "https://integrate.api.nvidia.com/v1/chat/completions", os.getenv("NVIDIA_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")),
+    "zai": ("ZAI_API_KEY", "https://open.bigmodel.cn/api/paas/v4/chat/completions", os.getenv("ZAI_MODEL", "glm-4.7-flash")),
 }
 
 def main():

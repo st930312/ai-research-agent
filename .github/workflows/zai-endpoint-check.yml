@@ -1,4 +1,4 @@
-name: AI Models - One-Time Verification
+name: Z.ai International - One-Time Verification
 on:
   push:
     branches: [main]
@@ -10,21 +10,15 @@ permissions:
   contents: read
 
 jobs:
-  verify:
-    name: Probe ${{ matrix.provider }}
+  verify-zai:
     runs-on: ubuntu-latest
     timeout-minutes: 4
-    strategy:
-      fail-fast: false
-      matrix:
-        provider: [zai, nvidia]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Exactly one model request, no retry
+      - name: Single GLM-4.7-Flash request; no retries
         env:
           ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
-          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-        run: python -m src.provider_probe ${{ matrix.provider }}
+        run: python -m src.provider_probe zai

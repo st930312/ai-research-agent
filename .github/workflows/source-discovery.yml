@@ -1,0 +1,59 @@
+name: Source Discovery - GitHub and Hacker News
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-discovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Fetch sources without AI calls
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from src.core import hn_search, TOPICS, dedup
+          from src.github_source import github_discover
+          results = []
+          counts = {}
+          for name, call in [
+              ('hackernews', lambda: hn_search(TOPICS['ai'], limit=5)),
+              ('github_search', lambda: github_discover('ai', limit=5)),
+          ]:
+              try:
+                  batch = call()
+                  counts[name] = len(batch)
+                  results.extend(batch)
+              except Exception as exc:
+                  counts[name] = 0
+                  print(f'{name} error: {type(exc).__name__}: {exc}')
+          items = dedup(results)
+          Path('output').mkdir(exist_ok=True)
+          Path('output/collected.json').write_text(
+              json.dumps(items, indent=2, ensure_ascii=False), encoding='utf-8')
+          print(f'SOURCE_COUNTS={counts}; UNIQUE={len(items)}')
+          if counts.get('github_search', 0) == 0:
+              raise SystemExit('GitHub discovery returned no results')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-discovery
+          path: output/
+          retention-days: 7

@@ -13,10 +13,14 @@ FEEDS = {
     ],
     "dev": [
         ("Ars Technica Technology Lab", "https://feeds.arstechnica.com/arstechnica/technology-lab"),
+        ("The Register DevOps", "https://api.theregister.com/api/v1/article?limit=25&orderBy=published&query=tag%3Adevops&remapper=rss&site_id=2"),
     ],
     "tech": [
         ("The Verge", "https://www.theverge.com/rss/index.xml"),
         ("Ars Technica Science", "https://feeds.arstechnica.com/arstechnica/science"),
+    ],
+    "gaming": [
+        ("巴哈姆特 GNN", "https://gnn.gamer.com.tw/rss.xml"),
     ],
     "finance": [
         ("TechCrunch Fintech", "https://techcrunch.com/category/fintech/feed/"),

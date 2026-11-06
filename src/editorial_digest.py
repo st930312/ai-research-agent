@@ -11,10 +11,11 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import urllib.parse
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
-from .core import dedup, hn_search
+from .core import dedup, fetch_json
 from .github_source import github_discover
 from .rss_source import rss_discover
 from .content_enrichment import enrich
@@ -56,13 +57,34 @@ MAX_ARTICLE_EXCERPT = 2400
 MAX_DISCORD_EMBEDS = 10
 MAX_DISCORD_TOTAL_CHARS = 5600
 
+def hn_latest(query, limit=6, fetcher=fetch_json):
+    """Hacker News Algolia date-sorted search, restricted to last seven days."""
+    since = int((datetime.now(timezone.utc) - timedelta(days=7)).timestamp())
+    params = urllib.parse.urlencode({
+        "query": query, "tags": "story", "hitsPerPage": limit,
+        "numericFilters": f"created_at_i>={since}",
+    })
+    payload = fetcher("https://hn.algolia.com/api/v1/search_by_date?" + params)
+    rows = []
+    for hit in payload.get("hits", [])[:limit]:
+        url = hit.get("url") or ("https://news.ycombinator.com/item?id="
+                                 + str(hit.get("objectID", "")))
+        if not url.startswith(("https://", "http://")):
+            continue
+        rows.append({
+            "title": hit.get("title") or "", "url": url,
+            "published_at": hit.get("created_at"),
+            "source": "hackernews", "score": hit.get("points") or 0,
+        })
+    return [row for row in rows if is_recent(row, 7)]
+
 def collect_candidates():
     """Metadata-only phase: no full article downloads."""
     rows = []
     counts = {}
     for kind, query in HN_QUERIES:
         try:
-            found = [x for x in hn_search(query, limit=20) if is_recent(x, 7)][:6]
+            found = hn_latest(query, limit=6)
             counts[f"hn_{kind}"] = len(found)
             for row in found:
                 row["suggested_category"] = kind

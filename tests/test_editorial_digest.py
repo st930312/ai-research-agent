@@ -48,6 +48,21 @@ class EditorialDigestTests(unittest.TestCase):
         self.assertTrue(all(len(x["value"]) <= 1024 for x in embeds[0]["fields"]))
         self.assertEqual(len(e.split_embed_messages(embeds)), 1)
 
+    def test_old_news_excluded(self):
+        from datetime import datetime, timezone
+        self.assertFalse(e.is_recent({"published_at": "2011-01-01T00:00:00Z"}))
+        self.assertTrue(e.is_recent({"published_at": datetime.now(timezone.utc).isoformat()}))
+
+    def test_one_message_per_category(self):
+        embeds = [
+            {"title": "AI", "fields": [{"name": "One", "value": "Details"}]},
+            {"title": "GitHub", "fields": [{"name": "Two", "value": "Details"}]},
+        ]
+        messages = e.split_embed_messages(embeds)
+        self.assertEqual(len(messages), 2)
+        self.assertEqual(messages[0][0]["title"], "AI")
+        self.assertEqual(messages[1][0]["title"], "GitHub")
+
     def test_no_discord_without_valid_webhook(self):
         with patch.dict("os.environ", {}, clear=True):
             with self.assertRaises(RuntimeError):

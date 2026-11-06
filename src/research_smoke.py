@@ -112,6 +112,7 @@ def main():
     if not items:
         raise RuntimeError("No source results; AI not called")
     print(f"Collected {len(items)} source links for {topic}; breakdown={sources}")
+    collected_unique = len(items)
     # Bound per-source network usage and total prompt size; retain metadata on failures.
     # Enrichment is sequential and caps all content at 1,800 characters per source.
     items = [enrich(item) for item in items[:8]]
@@ -127,7 +128,8 @@ def main():
         metrics["enriched_success"] = enriched_ok
         metrics["enriched_attempted"] = len(items)
         metrics["prompt_excerpt_chars"] = chars
-        metrics["collected_unique"] = len(items)
+        metrics["collected_unique"] = collected_unique
+        metrics["analyzed_items"] = len(items)
         (out / "metrics.json").write_text(
             json.dumps(metrics, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"NVIDIA research response complete: {time.monotonic()-start:.1f}s")

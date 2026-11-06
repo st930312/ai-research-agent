@@ -1,3 +1,4 @@
+# Re-run offline editorial tests after fixing fenced JSON test.
 name: Editorial Tech Briefing - Manual Preview
 
 on:

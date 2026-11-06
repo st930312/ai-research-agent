@@ -122,7 +122,17 @@ def _parse_json(text):
     if content.startswith("```"):
         content = re.sub(r"^\s*```(?:json)?\s*", "", content)
         content = re.sub(r"\s*```\s*$", "", content)
-    return json.loads(content)
+    # Some streaming models append a second JSON object or brief commentary.
+    # Decode the first complete JSON object; do not lose the batch on trailing text.
+    decoder = json.JSONDecoder()
+    for position in (i for i, char in enumerate(content[:120]) if char == "{"):
+        try:
+            parsed, _end = decoder.raw_decode(content[position:])
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            continue
+    raise ValueError("No complete JSON object in model response")
 
 def _request_ai(messages, max_tokens, metrics):
     if metrics["calls"] >= MAX_API_CALLS:

@@ -2,6 +2,7 @@ import unittest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 from src.v3_sources import github_releases, event_dedup
+from src.editorial_digest import _parse_json
 from src.wide_discord import format_wide_messages
 
 CATEGORIES = {
@@ -14,6 +15,13 @@ CATEGORIES = {
 }
 
 class V3Tests(unittest.TestCase):
+    def test_model_json_with_trailing_text(self):
+        parsed = _parse_json('{"articles":[{"id":1,"description":"正常"}]}'
+                             '{"note":"unrequested trailing object"}')
+        self.assertEqual(parsed["articles"][0]["id"], 1)
+        self.assertEqual(_parse_json("Here is the JSON: " +
+                                     '{"selected":[{"id":3}]}')['selected'][0]['id'], 3)
+
     def test_release_filter(self):
         date = datetime.now(timezone.utc).isoformat()
         def fake(_):

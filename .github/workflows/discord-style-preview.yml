@@ -1,0 +1,27 @@
+name: Discord Wide-Text Style Preview (No AI)
+
+# A single automatic style-test send when adding/updating this workflow.
+# Not scheduled; can be manually rerun later.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/discord-style-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  send-style-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Send fixed wide-text examples to Discord (no AI API)
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python -u -m src.discord_style_preview

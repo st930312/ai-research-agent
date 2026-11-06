@@ -1,0 +1,19 @@
+# Free-model-first selection. NVIDIA models are free prototype endpoints,
+# subject to provider quota and terms, not guaranteed unlimited.
+# No paid API fallback or automatic scheduled AI requests.
+providers:
+  zhipu:
+    model: glm-4.7-flash
+    endpoint: https://open.bigmodel.cn/api/paas/v4
+    secret: ZAI_API_KEY
+    role: daily_summary
+  nvidia:
+    model: nvidia/nemotron-3-ultra-550b-a55b
+    endpoint: https://integrate.api.nvidia.com/v1
+    secret: NVIDIA_API_KEY
+    role: deep_research
+    alternatives:
+      - nvidia/nemotron-3-super-120b-a12b
+      - deepseek-ai/deepseek-v4.1-flash
+# The Python client currently uses environment variables NVIDIA_MODEL / ZAI_MODEL;
+# this YAML documents intended routing rather than being loaded at runtime.

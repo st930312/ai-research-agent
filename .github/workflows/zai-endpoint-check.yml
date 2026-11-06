@@ -1,0 +1,24 @@
+name: Z.ai Endpoint Verification
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/zai-endpoint-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-zai:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: One Z.ai request (no retry)
+        env:
+          ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
+        run: python -m src.provider_probe zai

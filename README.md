@@ -1,40 +1,49 @@
-# AI Research Agent — zero-cost-first MVP
+# Technology Intelligence Feed — free-endpoint-first
 
-A manual GitHub Actions smoke test for research source collection. No schedule, paid search services, real AI calls, or database writes are enabled by default.
+A **Traditional-Chinese categorized technology digest**, produced by GitHub Actions and NVIDIA NIM. It is a news briefing, **not** a research-report archive.
 
-## How to test
+## Current editorial plan
 
-1. Open **Actions → AI Research - Manual Smoke Test → Run workflow**.
-2. Run with `live=false` first (offline fixture + unit tests).
-3. Run with `live=true` to query Hacker News Algolia API.
-4. Download the `research-smoke-output` artifact and open `report.md` and `collected.json`.
+- Target **15 stories**, flexible 10–20 only if credible and current candidates exist.
+- Categories: **AI/LLM/Agent (5), GitHub open source (2), Software/DevOps (3), Technology/Industry (4), Fintech/Semiconductors (1)**.
+- Each selected story receives **roughly 200–500 Traditional-Chinese characters** depending on substance. The model is instructed not to pad unsubstantiated claims.
+- News gathering: **Hacker News (past 7 days), GitHub repository discovery, public AI/technology/software/fintech RSS (past 5 days)**.
+- Editorial pipeline: metadata collection → one NVIDIA shortlist request → fetch excerpts/READMEs for selected stories → 3-story drafting batches → category-separated Discord embeds.
+- An estimated **6 NVIDIA model calls** for 15 stories (maximum 7, no automatic retry, no paid fallback).
+- No database, daily report storage, or cron schedule. Existing legacy smoke test workflows remain for debugging.
 
-Optional: set repository variable `SEARXNG_URL` only for a public instance explicitly permitting automated JSON queries.
+## Manual workflow (recommended)
 
-## Local test
+Go to **Actions → Editorial Tech Briefing - Manual Preview → Run workflow**.
+
+- `live_ai=false`, `send_discord=false`: source collection and unit tests only.
+- `live_ai=true`, `send_discord=false`: AI creates a full preview in the Actions log, **without Discord delivery**.
+- `live_ai=true`, `send_discord=true`: send category-separated Discord Embed messages.
+
+The AI API credentials stay in GitHub Actions Secrets:
+- `NVIDIA_API_KEY` — NVIDIA NIM free prototype endpoint
+- `DISCORD_WEBHOOK_URL` — Discord HTTPS webhook URL
+
+`GH_TOKEN` is supplied automatically from GitHub's workflow token; do not commit any credentials.
+
+**Do not set `send_discord=true` before reviewing a preview.** Use the new editorial workflow rather than the legacy `Technology Digest - One-Time Preview` workflow, which produces the older short format.
+
+## Quality notes
+
+- GitHub discovery is *trending-like* discovery via GitHub repository search, **not** the official GitHub Trending ranking.
+- When an article is unavailable, it can only be summarized based on limited metadata. The Discord output flags such entries.
+- A date-window filter helps prevent older popular articles being mistaken for current developments.
+- AI recommendations are checked for source IDs and category quotas; shortages are backfilled from dated metadata, not invented.
+- Web/RSS/README content is treated as untrusted reference material, not instructions.
+- RSS publishers retain links and attribution to the original articles. Generated summaries are commentary, not copies of publisher articles.
+- Free-prototype model access is subject to NVIDIA's service limits and terms, and may change.
+
+## Unit tests
 
 ```bash
 python -m unittest discover -s tests -v
-python -m src.main
-python -m src.main --live --topic ai
 ```
 
-## Model probes (local only, opt-in)
+## Older prototype components
 
-The model interface supports NVIDIA and Zhipu using REST; **the GitHub workflow does not invoke AI**. Never commit API keys.
-
-```bash
-ENABLE_REAL_AI=true NVIDIA_API_KEY=your_key python -m src.main --live --ai nvidia
-```
-
-Zhipu additionally requires `CONFIRM_ZHIPU_ZERO_COST=true` after verifying your account's free entitlement. API access alone is not proof of free credits. NVIDIA trial access is also subject to provider limits and policies.
-
-## Next phases
-
-- Verify external search providers and their permission/JSON compatibility.
-- Test an AI provider after confirming no-charge access.
-- Provision Neon Free, then enable idempotent persistence from GitHub Actions.
-- Add GitHub, arXiv, and RSS collectors.
-- Enable scheduled runs only after reliability and zero-cost guardrails are validated.
-
-Data scope: the smoke test handles headlines, metadata and links, not full article contents. It does not claim otherwise.
+`src/research_smoke.py` and `src/main.py` are retained as earlier proof-of-concept utilities. The current digest entry point is `python -m src.editorial_digest` (source-only by default). GLM/Z.ai remains disabled pending provider-limit clarification.

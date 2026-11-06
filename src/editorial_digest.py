@@ -146,7 +146,7 @@ def _request_ai(messages, max_tokens, metrics):
     started = time.monotonic()
     first = None
     fragments = []
-    with urllib.request.urlopen(req, timeout=115) as response:
+    with urllib.request.urlopen(req, timeout=180) as response:
         for raw in response:
             line = raw.decode("utf-8", errors="replace").strip()
             if not line.startswith("data: ") or line == "data: [DONE]":
@@ -263,6 +263,7 @@ def draft(selected, metrics):
     drafted = []
     for i in range(0, len(enriched), 3):
         batch = enriched[i:i + 3]
+        print(f"DRAFT_BATCH={i // 3 + 1}/{(len(enriched) + 2) // 3} items={len(batch)}", flush=True)
         sources = [{
             "id": row["id"], "title": row.get("title"), "url": row["url"],
             "category": row["category"], "importance": row["importance"],

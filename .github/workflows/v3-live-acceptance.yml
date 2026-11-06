@@ -1,3 +1,4 @@
+# Retry after bounded 180-second NVIDIA read timeout and latest gaming filter.
 name: V3 One-Time Live Discord Acceptance
 
 # One-time end-to-end acceptance. Trigger only when this workflow is edited.

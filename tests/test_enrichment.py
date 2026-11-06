@@ -18,6 +18,13 @@ class EnrichmentTests(unittest.TestCase):
         self.assertEqual(result["body_kind"], "github_readme")
         self.assertIn("Detailed README", result["body_excerpt"])
 
+    def test_github_raw_markdown_vendor_mime(self):
+        row = {"title": "org/repo", "url": "https://github.com/org/repo", "source": "github_search"}
+        result = enrich(row, fetcher=lambda url, headers=None: (
+            "# Real README\\n\\nThis is useful.", "application/vnd.github.raw+json"))
+        self.assertEqual(result["body_status"], "ok")
+        self.assertIn("Real README", result["body_excerpt"])
+
     def test_unavailable_does_not_break_run(self):
         row = {"url": "https://example.com/doc", "source": "hackernews"}
         def fetcher(url, headers=None):

@@ -1,0 +1,40 @@
+name: V3 Technology Briefing - Manual
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/v3-tech-digest.yml']
+  workflow_dispatch:
+    inputs:
+      live_ai:
+        type: boolean
+        default: false
+        description: "Run real NVIDIA editing (up to 7 API calls)"
+      send_discord:
+        type: boolean
+        default: false
+        description: "Send the generated wide-format briefing to Discord"
+
+permissions:
+  contents: read
+
+jobs:
+  v3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit tests, no external AI
+        run: python -m unittest discover -s tests -v
+      - name: Sources and optional NVIDIA / Discord
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          ENABLE_REAL_AI: ${{ github.event_name == 'workflow_dispatch' && inputs.live_ai && 'true' || 'false' }}
+          SEND_DISCORD: ${{ github.event_name == 'workflow_dispatch' && inputs.live_ai && inputs.send_discord && 'true' || 'false' }}
+        run: python -u -m src.editorial_digest
+# No cron, no persistence, no paid fallback.

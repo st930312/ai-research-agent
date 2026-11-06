@@ -98,8 +98,8 @@ def rss_discover(limit=5, fetcher=fetch_rss):
                     )
                     preferred = re.compile(r"Steam|PC|電腦|獨立遊戲", re.I)
                     rows = [row for row in rows if relevant.search(row["title"])]
-                    rows.sort(key=lambda row: bool(preferred.search(row["title"])), reverse=True)
-                rows = rows[:limit]
+                    rows.sort(key=lambda row: (row.get("published_at") or "", bool(preferred.search(row["title"]))), reverse=True)
+                rows = rows[:max(limit, 12) if category == "gaming" else limit]
                 results.extend(rows)
                 counts[label] = len(rows)
             except Exception as exc:

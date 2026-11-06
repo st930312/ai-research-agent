@@ -77,6 +77,12 @@ def format_wide_messages(articles, categories):
             article = article_text(row, index)
             joiner = "\n\n━━━━━━━━━━━━━━━━\n\n" if index > 1 else ""
             remaining = joiner + article
+            # A new Discord message is already a visual separator.
+            if (current != SPACER + heading_text
+                    and len(current) + len(remaining) + len(ENDING) > MAX_CONTENT):
+                messages.append(current)
+                current = ""
+                remaining = article
             while remaining:
                 # Keep the source URL with its article when it fits; don't chop
                 # a normal 200-500 character article into separate messages.

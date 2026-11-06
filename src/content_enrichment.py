@@ -77,7 +77,7 @@ def get_public_content(url, headers=None):
     opener = urllib.request.build_opener(NoRedirect())
     with opener.open(req, timeout=12) as response:
         ctype = response.headers.get("Content-Type", "").lower()
-        if not any(x in ctype for x in ("text/html", "text/plain", "text/markdown", "application/octet-stream", "application/json")):
+        if not any(x in ctype for x in ("text/html", "text/plain", "text/markdown", "application/octet-stream", "application/json")) and "+json" not in ctype:
             raise ValueError("Unsupported content type")
         raw = response.read(MAX_BYTES + 1)
         if len(raw) > MAX_BYTES:

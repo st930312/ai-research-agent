@@ -89,7 +89,17 @@ def rss_discover(limit=5, fetcher=fetch_rss):
     for category, feeds in FEEDS.items():
         for label, url in feeds:
             try:
-                rows = parse_feed(fetcher(url), label, category, limit)
+                rows = parse_feed(fetcher(url), label, category,
+                                  max(limit * 4, 20) if category == "gaming" else limit)
+                if category == "gaming":
+                    # Favor Steam/PC games and major game releases over anime notices.
+                    relevant = re.compile(
+                        r"Steam|PC|電腦|遊戲|發售|上市|開發|新作|主機|Xbox|Switch|PS[45]|獨立", re.I
+                    )
+                    preferred = re.compile(r"Steam|PC|電腦|獨立遊戲", re.I)
+                    rows = [row for row in rows if relevant.search(row["title"])]
+                    rows.sort(key=lambda row: bool(preferred.search(row["title"])), reverse=True)
+                rows = rows[:limit]
                 results.extend(rows)
                 counts[label] = len(rows)
             except Exception as exc:

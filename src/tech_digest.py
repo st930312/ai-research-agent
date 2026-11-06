@@ -101,7 +101,7 @@ def generate_digest(items, topic):
     if not digest:
         raise RuntimeError("Model returned empty digest")
     # Strip any accidental broad Discord mentions from LLM output.
-    digest = re.sub(r"@(everyone|here)", r"@\u200b\1", digest, flags=re.I)
+    digest = re.sub(r"@(everyone|here)", lambda m: "@\u200b" + m.group(1), digest, flags=re.I)
     metrics = {
         "api_calls": 1,
         "ttfc_s": round(first, 2) if first is not None else None,

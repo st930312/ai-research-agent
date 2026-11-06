@@ -16,7 +16,7 @@ class EditorialDigestTests(unittest.TestCase):
             })
 
     def test_json_code_fence(self):
-        self.assertEqual(e._parse_json("```json\\n{\\\"selected\\\":[]}\\n```"), {"selected": []})
+        self.assertEqual(e._parse_json("\n".join(["```json", '{"selected":[]}', "```"])), {"selected": []})
 
     def test_shortlist_validates_ids_and_category_caps(self):
         ai = []

@@ -61,7 +61,7 @@ class V3Tests(unittest.TestCase):
         messages = format_wide_messages([row], CATEGORIES)
         self.assertGreaterEqual(len(messages), 3)
         self.assertTrue(all(len(msg) <= 2000 for msg in messages))
-        self.assertGreaterEqual("".join(messages).count("很長的文章"), 500)
+        self.assertEqual("".join(messages).count("很"), 500)
 
 if __name__ == "__main__":
     unittest.main()

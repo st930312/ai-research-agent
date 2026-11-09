@@ -1,0 +1,36 @@
+# One-time V4 semantic audit acceptance: genuine NVIDIA AI, no Discord messages.
+name: V4 One-Time Semantic Preview - No Discord
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/v4-semantic-preview.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python PostgreSQL driver
+        run: python -m pip install -r requirements.txt
+      - name: Offline test suite
+        run: python -m unittest discover -s tests -v
+      - name: Validate live Neon storage and history reads
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m src.published_history
+      - name: Genuine NVIDIA event audit and digest preview; never send Discord
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ENABLE_REAL_AI: "true"
+          SEND_DISCORD: "false"
+        run: python -u -m src.editorial_digest

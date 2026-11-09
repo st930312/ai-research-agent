@@ -56,7 +56,12 @@ def filter_published(candidates, history):
     """Filter exact links, same recent GitHub repo, highly similar old titles."""
     from datetime import datetime, timedelta, timezone
     now = datetime.now(timezone.utc)
+    # Backfilled older rows may have a SHA-256 of the original URL,
+    # while newer rows hash canonical_url(). Always compare both identities:
+    # trailing slashes, UTM parameters, and URL normalization must not allow
+    # previously published links to pass as new events.
     urls = {h["event_key"] for h in history}
+    urls.update(event_key({"url": h["url"]}) for h in history if h.get("url"))
     titles = [(normalized_title(h.get("title")), h.get("category")) for h in history]
     blocked_repos = set()
     for h in history:

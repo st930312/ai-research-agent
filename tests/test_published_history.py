@@ -1,0 +1,45 @@
+import unittest
+from datetime import datetime, timezone
+from unittest.mock import patch
+from src.published_history import (
+    event_key, repo_name, filter_published, PublishedHistory, normalized_title
+)
+
+class NeonHistoryTests(unittest.TestCase):
+    def test_url_fingerprint_strips_tracking(self):
+        first = {"url": "https://example.org/news?utm_source=feed"}
+        second = {"url": "https://example.org/news"}
+        self.assertEqual(event_key(first), event_key(second))
+
+    def test_previous_github_repo_blocked_but_new_release_not(self):
+        old = {"event_key": "previous", "title": "Different original title",
+               "source": "github_search", "repo": "owner/project",
+               "published_at": datetime.now(timezone.utc)}
+        rows = [
+            {"url": "https://github.com/owner/project", "title": "Fresh description",
+             "source": "github_search"},
+            {"url": "https://github.com/owner/project/releases/tag/v2.0", "title": "v2.0 released",
+             "source": "github_release"},
+        ]
+        kept, skipped = filter_published(rows, [old])
+        self.assertEqual(skipped, 1)
+        self.assertEqual(kept[0]["source"], "github_release")
+
+    def test_same_story_different_urls_filtered(self):
+        old = {"event_key": "old", "title": "Major cloud service outage",
+               "source": "rss", "repo": None,
+               "published_at": datetime.now(timezone.utc)}
+        rows = [
+            {"url": "https://another.example.org/story", "title": "Major cloud service outage",
+             "source": "rss"}
+        ]
+        self.assertEqual(filter_published(rows, [old])[1], 1)
+
+    def test_no_credentials_does_not_leak_or_connect(self):
+        with patch.dict("os.environ", {}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "DATABASE_URL"):
+                PublishedHistory()
+
+    def test_repo_name(self):
+        self.assertEqual(repo_name({"source": "github_search", "url": "https://github.com/A/B"}), "a/b")
+        self.assertIsNone(repo_name({"source": "rss", "url": "https://example.com/a"}))

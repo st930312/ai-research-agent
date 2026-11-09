@@ -37,7 +37,7 @@ GAME_HIGH_VALUE = re.compile(
     r"PlayStation|Xbox|Nintendo|任天堂|索尼|Valve|"
     r"跨平台|重大更新|重要更新|全新玩法|正式推出|全球上市|"
     r"正式上線|全球發售|新作|首度公開|首次公開|發表|"
-    r"new game|launches|launching|new release|major update|"
+    r"new game|launch|new release|major update|"
     r"mobile game|手遊|手機遊戲|game industry|遊戲產業",
     re.I,
 )

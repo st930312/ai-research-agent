@@ -1,0 +1,37 @@
+# One-time V4 vs V3 comparison: real NVIDIA event audit, live Discord, Neon persistence.
+name: V4 One-Time Live Discord Comparison
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/v4-live-comparison.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PostgreSQL driver
+        run: python -m pip install -r requirements.txt
+      - name: Run Python regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Check Neon schema, read/write and transaction rollback
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m src.published_history
+      - name: Generate and send V4 Discord briefing once
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ENABLE_REAL_AI: "true"
+          SEND_DISCORD: "true"
+        run: python -u -m src.editorial_digest

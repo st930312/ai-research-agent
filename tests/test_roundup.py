@@ -16,7 +16,7 @@ class RoundupTests(unittest.TestCase):
         }
 
     def test_single_finance_slot_combines_three_independent_events(self):
-        rows = [self.sample("finance", n, f"Global industry news {n}") for n in (1, 2, 3)]
+        rows = [self.sample("finance", n, f"Global semiconductor news {n}") for n in (1, 2, 3)]
         result = cap_selection(rows)
         self.assertEqual(len(result), 1)
         self.assertEqual(len(result[0]["roundup_sources"]), 2)
@@ -37,8 +37,8 @@ class RoundupTests(unittest.TestCase):
 
     def test_roundup_draft_requests_all_sources_and_uses_column_title(self):
         rows = [self.sample("finance", 1, "Major semiconductor equipment order"),
-                self.sample("finance", 2, "Worldwide supply chain capacity"),
-                self.sample("finance", 3, "Payments regulation changes")]
+                self.sample("finance", 2, "HBM memory supply chain capacity"),
+                self.sample("finance", 3, "Fintech payment regulation changes")]
         captured = {}
         def fake_ai(messages, max_tokens, metrics):
             captured["messages"] = messages

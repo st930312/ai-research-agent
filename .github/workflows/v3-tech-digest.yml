@@ -1,3 +1,4 @@
+# Verify npm build, Python tests, and optional Neon connection.
 # Validate dated first Discord heading and all V3 source tests with no AI.
 # Test broad Taiwan stock news RSS and one-story independent category; AI and Discord disabled.
 # Revalidate category continuation after spacing tests corrected.
@@ -32,14 +33,29 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Unit tests, no external AI
-        run: python -m unittest discover -s tests -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Neon PostgreSQL driver
+        run: python -m pip install -r requirements.txt
+      - name: Build and test application
+        run: npm run build
+      - name: Neon PostgreSQL end-to-end smoke check (if configured)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -n "$DATABASE_URL" ]; then
+            npm run test:db
+          else
+            echo "NEON_SMOKE=SKIPPED (DATABASE_URL secret missing)"
+          fi
       - name: Sources and optional NVIDIA / Discord
         env:
           GH_TOKEN: ${{ github.token }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           ENABLE_REAL_AI: ${{ github.event_name == 'workflow_dispatch' && inputs.live_ai && 'true' || 'false' }}
           SEND_DISCORD: ${{ github.event_name == 'workflow_dispatch' && inputs.live_ai && inputs.send_discord && 'true' || 'false' }}
-        run: python -u -m src.editorial_digest
+        run: npm start
 # No cron, no persistence, no paid fallback.

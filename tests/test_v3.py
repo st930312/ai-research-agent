@@ -21,7 +21,9 @@ class V3Tests(unittest.TestCase):
         self.assertEqual(len(messages), 1)
 
     def test_taiwan_stock_quota_and_category(self):
-        self.assertEqual(sum(x[1] for x in REAL_CATEGORIES.values()), 15)
+        self.assertEqual(sum(x[1] for x in REAL_CATEGORIES.values()), 14)
+        self.assertEqual(REAL_CATEGORIES["gaming"][1], 1)
+        self.assertEqual(REAL_CATEGORIES["finance"][1], 1)
         self.assertEqual(REAL_CATEGORIES["tw_stock"][1], 1)
         sample = [
             {"id": 1, "title": "航運族群因運價變動受市場關注",

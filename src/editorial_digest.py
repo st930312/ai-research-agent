@@ -512,7 +512,8 @@ def draft(selected, metrics):
                 label = "今日遊戲情報精選"
             else:
                 label = row.get("title")
-            drafted.append({**row, "title": label, "ai_description": desc})
+            drafted.append({**row, "published_title": row.get("title"),
+                            "title": label, "ai_description": desc})
     return drafted
 
 def _safe_text(value):
@@ -643,8 +644,18 @@ def main():
         if database is None:
             raise RuntimeError("DATABASE_URL missing: cannot track published news")
         send_wide_messages(messages)
-        database.mark_sent(articles)
-        print(f"HISTORY_RECORDED={len(articles)}", flush=True)
+        # Store every independently sourced roundup item, not just its
+        # display card; otherwise next digest would re-recommend side stories.
+        history_rows = []
+        for article in articles:
+            history_rows.append({
+                **article,
+                "title": article.get("published_title") or article["title"],
+            })
+            for extra in article.get("roundup_sources", []):
+                history_rows.append(extra)
+        database.mark_sent(history_rows)
+        print(f"HISTORY_RECORDED={len(history_rows)}", flush=True)
         print("DISCORD_SENT=true", flush=True)
     else:
         print("DISCORD_SENT=false (preview)", flush=True)

@@ -67,7 +67,20 @@ def event_dedup(rows, ratio=0.88):
         title = norm_title(row.get("title") or "")
         if not title or canon in urls:
             continue
-        if any(SequenceMatcher(None, title, seen).ratio() >= ratio for seen in titles):
+        # Different formal releases of the same repository are distinct
+        # candidates. Whether the later release is newsworthy is the AI audit's
+        # job, not a title-similarity heuristic's.
+        if any(
+            SequenceMatcher(None, title, seen).ratio() >= ratio
+            and not (
+                row.get("source") == "github_release"
+                and previous.get("source") == "github_release"
+                and row.get("repo", "").lower() == previous.get("repo", "").lower()
+                and row.get("tag") and previous.get("tag")
+                and row["tag"].lower() != previous["tag"].lower()
+            )
+            for seen, previous in zip(titles, output)
+        ):
             continue
         output.append(row)
         urls.add(canon)

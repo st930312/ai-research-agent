@@ -42,6 +42,17 @@ class EventAuditTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "duplicated"):
                 audit_events(self.items, [], {"calls": 0, "latencies": []})
 
+    def test_rejects_overmerged_event_group(self):
+        items = self.items + [
+            {"id": 5, "category": "dev", "title": "Completely unrelated",
+             "url": "https://five.example/e"}
+        ]
+        response = '{"groups":[{"ids":[1,2,3,4,5],"keep":1,"summary":"Wrong grouping",'
+        response += '"entities":["Nvidia"],"event_type":"report"}],"historical_duplicates":[]}'
+        with patch("src.editorial_digest._request_ai", return_value=response):
+            with self.assertRaisesRegex(ValueError, "overmerged"):
+                audit_events(items, [], {"calls": 0, "latencies": []})
+
     def test_missing_semantic_metadata_fails_closed(self):
         response = '{"groups":[{"ids":[1,2,3,4],"keep":1}],"historical_duplicates":[]}'
         with patch("src.editorial_digest._request_ai", return_value=response):

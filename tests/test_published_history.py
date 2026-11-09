@@ -11,6 +11,25 @@ class NeonHistoryTests(unittest.TestCase):
         second = {"url": "https://example.org/news"}
         self.assertEqual(event_key(first), event_key(second))
 
+    def test_legacy_raw_url_hash_does_not_repeat_published_story(self):
+        import hashlib
+        old_url = "https://techcrunch.com/2026/11/08/nvidia-news/"
+        legacy_hash = hashlib.sha256(old_url.encode("utf-8")).hexdigest()
+        history = [{
+            "url": old_url, "event_key": legacy_hash,
+            "title": "Published Nvidia investigation", "category": "tech",
+            "source": "rss", "repo": None,
+            "published_at": datetime.now(timezone.utc),
+        }]
+        candidate = {
+            "url": "https://techcrunch.com/2026/11/08/nvidia-news/?utm_source=rss",
+            "title": "Nvidia story with a different classification",
+            "suggested_category": "ai", "source": "rss",
+        }
+        kept, skipped = filter_published([candidate], history)
+        self.assertEqual(kept, [])
+        self.assertEqual(skipped, 1)
+
     def test_previous_github_repo_blocked_but_new_release_not(self):
         old = {"event_key": "previous", "title": "Different original title",
                "source": "github_search", "repo": "owner/project",

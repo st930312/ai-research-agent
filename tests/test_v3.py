@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 from src.v3_sources import github_releases, event_dedup
-from src.editorial_digest import _parse_json
+from src.editorial_digest import _parse_json, CATEGORIES as REAL_CATEGORIES, shortlist
 from src.wide_discord import format_wide_messages
 
 CATEGORIES = {
@@ -15,6 +15,25 @@ CATEGORIES = {
 }
 
 class V3Tests(unittest.TestCase):
+    def test_taiwan_stock_quota_and_category(self):
+        self.assertEqual(sum(x[1] for x in REAL_CATEGORIES.values()), 15)
+        self.assertEqual(REAL_CATEGORIES["tw_stock"][1], 1)
+        sample = [
+            {"id": 1, "title": "航運族群因運價變動受市場關注",
+             "url": "https://example.com/taiwan-shipping",
+             "suggested_category": "tw_stock", "source": "rss",
+             "published_at": datetime.now(timezone.utc).isoformat()},
+            {"id": 2, "title": "AI model launch", "url": "https://example.org/ai",
+             "suggested_category": "ai", "source": "rss",
+             "published_at": datetime.now(timezone.utc).isoformat()},
+        ]
+        with patch("src.editorial_digest._request_ai", return_value=
+                   '{"selected":[{"id":1,"category":"tech","importance":3},'
+                   '{"id":2,"category":"tw_stock","importance":3}]}'):
+            picks = shortlist(sample, {"calls": 0, "latencies": []})
+        self.assertEqual(len([p for p in picks if p["category"] == "tw_stock"]), 1)
+        self.assertEqual([p["id"] for p in picks if p["category"] == "tw_stock"], [1])
+
     def test_model_json_with_trailing_text(self):
         parsed = _parse_json('{"articles":[{"id":1,"description":"正常"}]}'
                              '{"note":"unrequested trailing object"}')

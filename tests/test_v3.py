@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from unittest.mock import patch
 from src.v3_sources import github_releases, event_dedup
 from src.editorial_digest import _parse_json, CATEGORIES as REAL_CATEGORIES, shortlist
@@ -15,6 +15,11 @@ CATEGORIES = {
 }
 
 class V3Tests(unittest.TestCase):
+    def test_first_discord_title_includes_taiwan_issue_date(self):
+        messages = format_wide_messages([], REAL_CATEGORIES, issue_date=date(2026, 11, 9))
+        self.assertIn("# 🛰️ 2026/11/09 科技快訊", messages[0])
+        self.assertEqual(len(messages), 1)
+
     def test_taiwan_stock_quota_and_category(self):
         self.assertEqual(sum(x[1] for x in REAL_CATEGORIES.values()), 15)
         self.assertEqual(REAL_CATEGORIES["tw_stock"][1], 1)

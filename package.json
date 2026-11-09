@@ -1,0 +1,11 @@
+{
+  "name": "ai-research-agent",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Python GitHub Actions news digest; npm scripts provide requested build/start checks",
+  "scripts": {
+    "build": "python -m compileall -q src tests && python -m unittest discover -s tests -v",
+    "start": "python -m src.editorial_digest",
+    "test:db": "python -m src.published_history"
+  }
+}

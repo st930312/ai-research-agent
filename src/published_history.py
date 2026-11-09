@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS published_events (
 CREATE INDEX IF NOT EXISTS published_events_time ON published_events (published_at DESC);
 CREATE INDEX IF NOT EXISTS published_events_repo ON published_events (repo, published_at DESC);
 ALTER TABLE published_events ADD COLUMN IF NOT EXISTS event_summary TEXT NOT NULL DEFAULT '';
+ALTER TABLE published_events ADD COLUMN IF NOT EXISTS article_summary TEXT NOT NULL DEFAULT '';
 ALTER TABLE published_events ADD COLUMN IF NOT EXISTS event_entities JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE published_events ADD COLUMN IF NOT EXISTS event_type TEXT NOT NULL DEFAULT '';
 ALTER TABLE published_events ADD COLUMN IF NOT EXISTS release_tag TEXT;
@@ -122,7 +123,7 @@ class PublishedHistory:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT event_key, url, title, category, source, repo, published_at, "
-                    "event_summary, event_entities, event_type, release_tag, source_urls "
+                     "event_summary, article_summary, event_entities, event_type, release_tag, source_urls "
                     "FROM published_events WHERE published_at >= NOW() - (%s * INTERVAL '1 day') "
                     "ORDER BY published_at DESC LIMIT 2500", (days,)
                 )
@@ -139,13 +140,13 @@ class PublishedHistory:
                     cur.execute(
                         "INSERT INTO published_events "
                         "(event_key, url, title, category, source, repo, event_summary, "
-                        "event_entities, event_type, release_tag, source_urls) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                        "article_summary, event_entities, event_type, release_tag, source_urls) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
                         "ON CONFLICT (event_key) DO NOTHING",
                         (event_key(row), canonical_url(row["url"]), row.get("title") or "",
                          row.get("category") or "", row.get("source") or "", repo_name(row),
-                         (row.get("ai_description") or row.get("event_summary")
-                          or row.get("description") or "")[:800],
+                         (row.get("event_summary") or row.get("description") or "")[:650],
+                         (row.get("ai_description") or "")[:1000],
                          Jsonb(list(row.get("event_entities") or [])[:12]),
                          str(row.get("event_type") or "")[:80], release_tag(row),
                          Jsonb(list(dict.fromkeys(

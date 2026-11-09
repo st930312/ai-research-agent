@@ -295,7 +295,8 @@ def audit_events(selected, history, metrics):
     previous = [{
         "title": h.get("title", ""), "category": h.get("category", ""),
         "published_at": str(h.get("published_at") or ""),
-        "event_summary": (h.get("event_summary") or "")[:600],
+        "event_summary": (h.get("event_summary") or "")[:500],
+        "article_summary": (h.get("article_summary") or "")[:400],
         "event_entities": h.get("event_entities") or [],
         "event_type": h.get("event_type") or "",
         "repo": h.get("repo"), "release_tag": h.get("release_tag"),
@@ -325,7 +326,7 @@ def audit_events(selected, history, metrics):
         {"role": "system", "content": instruction},
         {"role": "user", "content": json.dumps(
             {"candidates": records, "history": previous}, ensure_ascii=False)},
-    ], max_tokens=2400, metrics=metrics)
+    ], max_tokens=3600, metrics=metrics)
     result = _parse_json(answer)
     expected = {row["id"] for row in selected}
     groups = result.get("groups")
@@ -536,7 +537,19 @@ def main():
         database = PublishedHistory()
         database.setup_and_probe()
         history = database.recent()
+        # Track fresh stable releases of repositories already recommended.
+        # A substantial new version can be news even during the repo cooldown.
+        recent_repos = list(dict.fromkeys(
+            row["repo"] for row in history
+            if row.get("repo") and row.get("source") in ("github_search", "github_release")
+        ))[:12]
+        if recent_repos:
+            updates, update_counts = github_releases(limit=12, repos=recent_repos)
+            updates = [row for row in updates if is_recent(row, 14)]
+            candidates = event_dedup(dedup(candidates + updates))
+            print(f"TRACKED_REPOS={len(recent_repos)} TRACKED_RELEASES={len(updates)}", flush=True)
         candidates, skipped = filter_published(candidates, history)
+        candidates = candidates[:MAX_CANDIDATES]
         for index, row in enumerate(candidates, 1):
             row["id"] = index
         print(f"HISTORY_LOADED={len(history)} HISTORY_FILTERED={skipped} REMAINING={len(candidates)}", flush=True)

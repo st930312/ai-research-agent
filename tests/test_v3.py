@@ -63,6 +63,17 @@ class V3Tests(unittest.TestCase):
         self.assertEqual(rows[0]["source"], "github_release")
         self.assertEqual(counts["golang/go"], 1)
 
+    def test_different_release_versions_survive_title_similarity_filter(self):
+        rows = [
+            {"source": "github_release", "repo": "owner/long-project-name",
+             "tag": "v2.0.0", "title": "owner/long-project-name releases v2.0.0",
+             "url": "https://github.com/owner/long-project-name/releases/tag/v2.0.0"},
+            {"source": "github_release", "repo": "owner/long-project-name",
+             "tag": "v2.0.1", "title": "owner/long-project-name releases v2.0.1",
+             "url": "https://github.com/owner/long-project-name/releases/tag/v2.0.1"},
+        ]
+        self.assertEqual(len(event_dedup(rows)), 2)
+
     def test_cross_source_similar_headline_dedup(self):
         rows = [
             {"url": "https://a.com/story", "title": "Example launches technology"},

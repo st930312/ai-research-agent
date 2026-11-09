@@ -1,4 +1,4 @@
-# One user-requested V4.2 live acceptance: gate Discord on tests + Neon smoke.
+# V4.2 one-time test-gated Discord acceptance: correct RSS test scope, no schedule.
 name: V4.2 One-Time Live Discord Acceptance
 
 on:

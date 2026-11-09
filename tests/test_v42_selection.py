@@ -19,8 +19,9 @@ class V42SelectionTests(unittest.TestCase):
         with patch.dict("src.rss_source.FEEDS",
                         {"gaming":[("Gematsu","https://example.org/feed")]}):
             rows,_=rss_discover(limit=5,fetcher=lambda _:data)
-        self.assertEqual(len(rows),1)
-        self.assertEqual(rows[0]["suggested_category"],"gaming")
+        games=[row for row in rows if row["suggested_category"]=="gaming"]
+        self.assertEqual(len(games),1)
+        self.assertEqual(games[0]["title"],"Astral Tide: Echoes chapter expansion")
 
     def test_search_new_and_established_github(self):
         seen=[]

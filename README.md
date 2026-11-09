@@ -1,4 +1,4 @@
-# Technology Intelligence Feed V3
+# Technology Intelligence Feed V4.1
 
 15-story Traditional-Chinese technology, games, and Taiwan stock-market briefing. GitHub Actions + NVIDIA NIM + Discord wide-format Markdown.
 
@@ -9,11 +9,19 @@ Target 15 current stories (as many as 10–20 only when strong sources exist):
 - GitHub Open Source **2**
 - Software Engineering / DevOps **2**
 - Technology Industry / New Technology **3**
-- Gaming / Steam **2**
-- Fintech / Semiconductors **1**
+- **Gaming discovery roundup: up to 1 slot** (1–3 noteworthy PC, console or mobile game and platform stories; omit if weak)
+- **Global semiconductor and fintech industry outlook: 1 slot** (integrate up to 4 distinct international news events, focus on demand, supply chain, competition and policy, not individual stock picks)
 - Taiwan Stock Market (all sectors) **1**
 
 AI writes up to 200–500 Traditional-Chinese characters per story, adjusted to available evidence. The system discourages padding or unsupported claims.
+
+## V4.1: Industry trends and game discovery
+
+The global semiconductor and fintech slot is a **single multi-source international industry synthesis**, not a stock recommendation or a company-only headline. Draw from 2–4 independently audited, recent sources where available, explain global supply/demand, manufacturing, infrastructure, payments or regulatory implications. The separate Taiwan stock slot remains dedicated to Taiwan market context.
+
+The gaming slot is **one curated roundup** with up to three concise, independent items: noteworthy platform/industry developments, distinctive new PC/console titles, and potentially interesting mobile games. Personal tastes are ranking bonuses rather than exclusion rules; routine preregistrations, unremarkable discounts and low-impact updates should not be selected. If nothing worthwhile exists, omit the slot rather than insert filler. Only AI-approved gaming candidates qualify; metadata-based backfill is disabled for gaming.
+
+All displayed source URLs remain clickable, and each component of a roundup is separately stored in Neon after successful Discord delivery to prevent it from reappearing the next run. These roundups count as **one slot each**; the digest remains at most 15 editorial slots and does not pad weak days.
 
 ## Sources
 

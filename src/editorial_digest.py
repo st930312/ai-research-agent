@@ -262,6 +262,48 @@ def shortlist(candidates, metrics, target=DEFAULT_SELECT, oversample=False):
         seen.add(ident)
         if len(chosen) >= target:
             break
+    # Reserve evidence-backed roundup candidates BEFORE generic metadata
+    # backfill. AI can misclassify niche semiconductor or mobile game news;
+    # these titles still enter the semantic event audit, not automatic sending.
+    # Never force a topic if the candidate pool contains no qualified sources.
+    reserve_targets = (("finance", 3), ("gaming", 2)) if oversample else (("finance", 1),)
+    for category, preferred_count in reserve_targets:
+        eligible = [
+            row for row in candidates
+            if row["id"] not in seen
+            and row.get("suggested_category") != "tw_stock"
+            and (industry_eligible(row) if category == "finance"
+                 else gaming_eligible(row))
+            and (category != "gaming"
+                 or row.get("suggested_category") in ("gaming", "tech"))
+        ]
+        eligible.sort(key=lambda row: (
+            int(row.get("suggested_category") == category),
+            int(row.get("source") == "rss"),
+            str(row.get("published_at") or ""),
+        ), reverse=True)
+        for row in eligible:
+            if quota[category] >= min(preferred_count, constraints[category]):
+                break
+            if len(chosen) >= target:
+                # Sacrifice only an extra slot above the baseline quota;
+                # never displace an entire unrelated required category.
+                victim = next((
+                    item for item in reversed(chosen)
+                    if quota[item["category"]] > CATEGORIES[item["category"]][1]
+                    and item["category"] not in ("finance", "gaming")
+                ), None)
+                if victim is None:
+                    break
+                chosen.remove(victim)
+                quota[victim["category"]] -= 1
+                seen.remove(victim["id"])
+            chosen.append({
+                **row, "category": category, "importance": 2,
+                "selection_method": "curated_reserve",
+            })
+            quota[category] += 1
+            seen.add(row["id"])
     # Models may return only a few selections. Fill missing slots from the
     # metadata pool, respecting categories and never inventing news entries.
     # AI selections remain first; fallbacks are explicitly tracked below.

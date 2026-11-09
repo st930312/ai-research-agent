@@ -1,4 +1,4 @@
-# Technology Intelligence Feed V4.1
+# Technology Intelligence Feed V4.2
 
 15-story Traditional-Chinese technology, games, and Taiwan stock-market briefing. GitHub Actions + NVIDIA NIM + Discord wide-format Markdown.
 
@@ -15,22 +15,22 @@ Target 15 current stories (as many as 10–20 only when strong sources exist):
 
 AI writes up to 200–500 Traditional-Chinese characters per story, adjusted to available evidence. The system discourages padding or unsupported claims.
 
-## V4.1: Industry trends and game discovery
+## V4.2: Specific world-industry events, games, and active GitHub discoveries
 
-The global semiconductor and fintech slot is a **single multi-source international industry synthesis**, not a stock recommendation or a company-only headline. Draw from 2–4 independently audited, recent sources where available, explain global supply/demand, manufacturing, infrastructure, payments or regulatory implications. The separate Taiwan stock slot remains dedicated to Taiwan market context.
+The global semiconductor and fintech slot is a **fact-first international industry brief**: report each real event and evidence-backed industry significance separately; do not force unrelated sources into one purported trend. Draw from 2–4 independently audited, recent sources where available, explain global supply/demand, manufacturing, infrastructure, payments or regulatory implications. The separate Taiwan stock slot remains dedicated to Taiwan market context.
 
-The gaming slot is **one curated roundup** with up to three concise, independent items: noteworthy platform/industry developments, distinctive new PC/console titles, and potentially interesting mobile games. Personal tastes are ranking bonuses rather than exclusion rules; routine preregistrations, unremarkable discounts and low-impact updates should not be selected. If nothing worthwhile exists, omit the slot rather than insert filler. Only AI-approved gaming candidates qualify; metadata-based backfill is disabled for gaming.
+The gaming slot is **one curated roundup** with up to three concise, independent items: noteworthy platform/industry developments, distinctive new PC/console titles, and potentially interesting mobile games. Personal tastes are ranking bonuses rather than exclusion rules; routine preregistrations, unremarkable discounts and low-impact updates should not be selected. If nothing worthwhile exists, omit the slot rather than insert filler. Only AI-approved gaming candidates qualify; metadata-based backfill is disabled for gaming, and hard-coded gaming-title keyword gates are removed.
 
 All displayed source URLs remain clickable, and each component of a roundup is separately stored in Neon after successful Discord delivery to prevent it from reappearing the next run. These roundups count as **one slot each**; the digest remains at most 15 editorial slots and does not pad weak days.
 
 ## Sources
 
 - Hacker News Algolia: recent stories (7 days), searched by date
-- TechCrunch AI / Fintech; Ars Technica AI / Science / Technology Lab; The Verge
-- **Bahamut GNN** RSS, with Steam/PC and game-news relevance preference
+- TechCrunch AI / Fintech; Semiconductor Engineering; SemiWiki; Ars Technica AI / Science / Technology Lab; The Verge
+- **Bahamut GNN**, **Gematsu**, **PC Gamer** RSS; shared AI considers Steam, launches, new titles, tests, important updates and mobile games, with no title-keyword exclusions
 - **Yahoo Taiwan Stock** Taiwan-market RSS and **CNA** finance and securities RSS; select across all industries, financial stocks, shipping, traditional sectors, index moves, foreign institutional flows, regulatory announcements, and individual company earnings, not just technology/AI
 - **The Register** DevOps RSS
-- GitHub recently created project search (not official Trending)
+- GitHub recently created or recently active established repository search (not official Trending), retaining the 90-day cooldown and genuine-release exception
 - **GitHub Releases** for curated established projects (Go, React, Moby/Docker, Redis, Docker Compose, Kubernetes)
 
 Headline/event near-duplicate suppression, Neon publication-history filtering and URL de-duplication occur before the AI selection. The editorial selection validates source IDs, categories, and fixed quotas, and supports clearly labeled metadata-based fallback when an AI shortlist is incomplete. RSS dates and HN dates are filtered to recent items. Source URL is always preserved.

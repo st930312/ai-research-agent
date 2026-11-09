@@ -25,11 +25,19 @@ def github_discover(topic="ai", limit=5, fetcher=None):
     if fetcher is None:
         fetcher = _fetch
     since = (datetime.now(timezone.utc) - timedelta(days=14)).date().isoformat()
+    recently_pushed = (datetime.now(timezone.utc) - timedelta(days=7)).date().isoformat()
     entries = []
-    for term in TOPIC_TERMS[topic]:
+    searches = [
+        (term, f"created:>={since} stars:>=2", "stars")
+        for term in TOPIC_TERMS[topic]
+    ]
+    # Catch established projects with genuine recent work, alongside new ones.
+    searches.append((TOPIC_TERMS[topic][0],
+                     f"pushed:>={recently_pushed} stars:>=50", "updated"))
+    for term, window, sort in searches:
         query = urllib.parse.urlencode({
-            "q": f"{term} created:>={since} stars:>=2",
-            "sort": "stars", "order": "desc", "per_page": limit,
+            "q": f"{term} {window}",
+            "sort": sort, "order": "desc", "per_page": limit,
         })
         data = fetcher("https://api.github.com/search/repositories?" + query)
         for item in data.get("items", [])[:limit]:
@@ -41,11 +49,12 @@ def github_discover(topic="ai", limit=5, fetcher=None):
                 "url": url, "source": "github_search",
                 "description": (item.get("description") or "")[:400],
                 "published_at": item.get("created_at"),
+                "last_pushed_at": item.get("pushed_at"),
                 "score": item.get("stargazers_count", 0),
                 "language": item.get("language"),
-                "note": "Recently created popular repositories; NOT official GitHub Trending.",
+                "note": "Recently created or recently active project; NOT official Trending.",
             })
-    # Unauthenticated search is rate-limited, so this test does only two queries.
+    # A small bounded discovery search; GitHub rate limits handled upstream.
     seen = set()
     result = []
     for item in sorted(entries, key=lambda x: x["score"], reverse=True):

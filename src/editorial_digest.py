@@ -22,7 +22,7 @@ from .v3_sources import github_releases, event_dedup
 from .wide_discord import format_wide_messages, send_wide_messages
 from .published_history import PublishedHistory, filter_published
 from .content_enrichment import enrich
-from .editorial_policy import industry_eligible, gaming_eligible
+from .editorial_policy import industry_eligible
 from .tech_digest import API, MODEL
 
 CATEGORIES = {
@@ -55,7 +55,7 @@ def is_recent(row, days=7):
     except ValueError:
         return False
 
-MAX_CANDIDATES = 100
+MAX_CANDIDATES = 150
 MAX_SELECT = 20
 DEFAULT_SELECT = 15
 MAX_API_CALLS = 7
@@ -214,10 +214,13 @@ def shortlist(candidates, metrics, target=DEFAULT_SELECT, oversample=False):
         "不可偏重 AI 或硬體；不要給股價預測和投資建議。"
         "finance 為全球半導體與金融科技產業觀察：優先挑跨公司供需、產業技術、政策、資本支出、競爭格局與國際市場等具體事件。"
         "可挑兩項以上獨立來源供同一個產業綜述版位使用；不必強制半導體與金融科技對半。"
-        "gaming 只推薦真正有特色或高關注的新遊戲、值得探索的手遊、Steam/主機平台重大變化；"
-        "偏好 PC 不代表排除手遊。個人偏好是加分而非硬門檻。"
-        "避免一般事前登錄、冷門作品例行降價或無特色的更新占據版位。"
-        "當天沒有值得推薦的遊戲，允許不選 gaming，絕不為了補配額硬湊。"
+        "gaming 是探索型精選：考量 Steam、PC、主機、手遊的新作、發售、測試、重要內容更新、"
+        "平台新規或玩家產業事件；這些僅是提示範例，不是標題必備字眼，也不代表自動入選。"
+        "請理解玩法特色、受眾、關注熱度、實質內容與玩家可能的興趣。"
+        "即使標題沒有任何上述關鍵字，只要新聞有價值也應推薦；不要只偏重 PC 排除手遊。"
+        "日常事前登錄或單純促銷通常價值不高，但真正重大內容可以例外。"
+        "finance 應優先報導全球半導體與金融科技真實產業事件，不可將泛科技新聞拼成大趨勢。"
+        "GitHub 最多 2 個，而非必須湊滿；遊戲沒有合適新聞也可以少一個分類。"
         "至少嘗試保留 github 真正有價值的候選；不要推薦同一事件的重複報導。"
         "特別警惕同一事件多家媒體不同標題的重複報導；選題池須涵蓋多樣事件，避免單一公司事件霸佔同分類。"
     )
@@ -255,8 +258,6 @@ def shortlist(candidates, metrics, target=DEFAULT_SELECT, oversample=False):
                 continue
         if category == "finance" and not industry_eligible(lookup[ident]):
             continue
-        if category == "gaming" and not gaming_eligible(lookup[ident]):
-            continue
         chosen.append({**lookup[ident], "category": category, "importance": importance})
         quota[category] += 1
         seen.add(ident)
@@ -266,16 +267,13 @@ def shortlist(candidates, metrics, target=DEFAULT_SELECT, oversample=False):
     # backfill. AI can misclassify niche semiconductor or mobile game news;
     # these titles still enter the semantic event audit, not automatic sending.
     # Never force a topic if the candidate pool contains no qualified sources.
-    reserve_targets = (("finance", 3), ("gaming", 2)) if oversample else (("finance", 1),)
+    reserve_targets = (("finance", 3),) if oversample else (("finance", 1),)
     for category, preferred_count in reserve_targets:
         eligible = [
             row for row in candidates
             if row["id"] not in seen
             and row.get("suggested_category") != "tw_stock"
-            and (industry_eligible(row) if category == "finance"
-                 else gaming_eligible(row))
-            and (category != "gaming"
-                 or row.get("suggested_category") in ("gaming", "tech"))
+            and industry_eligible(row)
         ]
         eligible.sort(key=lambda row: (
             int(row.get("suggested_category") == category),
@@ -472,8 +470,6 @@ def cap_selection(items, target=DEFAULT_SELECT):
             continue
         if category == "finance" and not industry_eligible(row):
             continue
-        if category == "gaming" and not gaming_eligible(row):
-            continue
         if category in ("finance", "gaming"):
             if counters[category] == 0:
                 kept.append({**row, "roundup_sources": []})
@@ -546,9 +542,13 @@ def draft(selected, metrics):
             "importance=3 寫 400～500 字，2 寫 250～350 字，1 寫 200～250 字；"
             "但資訊不足時要縮短，絕不為達字數杜撰。"
             "內容說明：發生什麼、具體內容及影響、為何值得關注。"
-            "對 category=finance 請改寫成「全球半導體與金融科技產業觀察」一篇綜述，"
-            "將主要來源及 roundup_sources 各自視為獨立新聞證據，整合成全球產業需求、供應鏈、技術、競爭或監管的新動向。"
-            "不必推薦個股、不要台股買賣建議或投資觀察清單，也不要強迫兩產業各占一半。"
+            "category=finance 是全球產業情報而非長篇空泛評論。逐則報導具體事件："
+            "先寫『何人何時做了什麼，有哪些確定數字或決策』，再寫『對全球產業供需、"
+            "技術、競爭、監管或資本支出的可能意義』。每個事件與原始來源一一對照。"
+            "沒有證據顯示相互關聯的事件應分段，不得強行串成共同趨勢、深度重構等口號。"
+            "來源不足時可只寫一件重要產業事件；不必強制半導體和金融科技各占一半。"
+            "清楚區分報導事實與推論，切勿捏造產業數字或因果。"
+            "不提供個股推薦、投資觀察清單或股價預測。"
             "對 category=gaming 請寫「今日遊戲情報精選」，"
             "先簡要介紹重要產業或平台新聞，再介紹具特色的 PC、主機或手機遊戲；"
             "roundup_sources 是不同遊戲或事件，不可當成同一事件；有幾則就介紹幾則，不憑空補齊。"

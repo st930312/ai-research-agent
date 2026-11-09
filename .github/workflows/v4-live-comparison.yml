@@ -1,5 +1,5 @@
-# User-requested one-time V4.1 Discord live acceptance; no daily schedule.
-name: V4.1 One-Time Live Discord Acceptance
+# One user-requested V4.2 live acceptance: gate Discord on tests + Neon smoke.
+name: V4.2 One-Time Live Discord Acceptance
 
 on:
   push:
@@ -26,7 +26,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python -m src.published_history
-      - name: Generate and send V4.1 Discord briefing once
+      - name: Generate and send V4.2 Discord briefing once
         env:
           GH_TOKEN: ${{ github.token }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}

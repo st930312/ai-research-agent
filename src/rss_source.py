@@ -21,9 +21,13 @@ FEEDS = {
     ],
     "gaming": [
         ("巴哈姆特 GNN", "https://gnn.gamer.com.tw/rss.xml"),
+        ("Gematsu", "https://www.gematsu.com/feed"),
+        ("PC Gamer", "https://www.pcgamer.com/feeds.xml"),
     ],
     "finance": [
         ("TechCrunch Fintech", "https://techcrunch.com/category/fintech/feed/"),
+        ("Semiconductor Engineering", "https://semiengineering.com/feed/"),
+        ("SemiWiki", "https://semiwiki.com/feed/"),
     ],
     "tw_stock": [
         ("Yahoo 股市 台股動態", "https://tw.stock.yahoo.com/rss?category=tw-market"),
@@ -96,13 +100,9 @@ def rss_discover(limit=5, fetcher=fetch_rss):
                 rows = parse_feed(fetcher(url), label, category,
                                   max(limit * 4, 20) if category in ("gaming", "tw_stock") else limit)
                 if category == "gaming":
-                    # Favor Steam/PC games and major game releases over anime notices.
-                    relevant = re.compile(
-                        r"Steam|PC|電腦|遊戲|發售|上市|開發|新作|主機|Xbox|Switch|PS[45]|獨立", re.I
-                    )
-                    preferred = re.compile(r"Steam|PC|電腦|獨立遊戲", re.I)
-                    rows = [row for row in rows if relevant.search(row["title"])]
-                    rows.sort(key=lambda row: (row.get("published_at") or "", bool(preferred.search(row["title"]))), reverse=True)
+                    # Let AI evaluate every time-ordered gaming story without
+                    # prefiltering it by title vocabulary.
+                    rows.sort(key=lambda row: row.get("published_at") or "", reverse=True)
                 if category == "tw_stock":
                     # All industries qualify, not only technology / AI.
                     equity = re.compile(
@@ -116,7 +116,7 @@ def rss_discover(limit=5, fetcher=fetch_rss):
                             label.startswith("Yahoo") or
                             equity.search(row["title"] + " " + row.get("description", ""))]
                     rows.sort(key=lambda row: row.get("published_at") or "", reverse=True)
-                rows = rows[:max(limit, 12) if category == "gaming" else
+                rows = rows[:max(limit, 8) if category in ("gaming", "finance") else
                              max(limit, 10) if category == "tw_stock" else limit]
                 results.extend(rows)
                 counts[label] = len(rows)

@@ -12,6 +12,8 @@ class RoundupTests(unittest.TestCase):
             "id": ident, "category": category, "title": title,
             "url": f"https://example.org/{category}/{ident}",
             "source": "rss", "description": "source excerpt", "importance": 2,
+            "suggested_category": category,
+            "publisher": "TechCrunch Fintech" if category == "finance" else "巴哈姆特 GNN",
             "event_summary": f"Event {ident}",
         }
 
@@ -51,7 +53,8 @@ class RoundupTests(unittest.TestCase):
         request = captured["messages"][1]["content"]
         for row in rows:
             self.assertIn(row["url"], request)
-        self.assertIn("不要台股買賣建議", captured["messages"][0]["content"])
+        self.assertIn("不提供個股推薦", captured["messages"][0]["content"])
+        self.assertIn("具體事件", captured["messages"][0]["content"])
 
     def test_game_not_filled_from_low_priority_metadata(self):
         now = "2026-11-09T05:00:00+00:00"
@@ -82,34 +85,38 @@ class RoundupTests(unittest.TestCase):
         chosen = cap_selection(base)
         self.assertEqual(len(chosen), 4)
 
-    def test_finance_and_games_get_verified_reserve_candidates(self):
+    def test_finance_reserve_trusted_feeds_without_title_keywords(self):
         now = "2026-11-09T05:00:00+00:00"
-        raw = [
-            {"id": 1, "title": "Major semiconductor wafer equipment demand",
-             "url": "https://example.org/semiconductor", "source": "rss",
-             "suggested_category": "tech", "published_at": now},
-            {"id": 2, "title": "Digital banking payments regulation in Europe",
-             "url": "https://example.org/banking", "source": "rss",
-             "suggested_category": "finance", "published_at": now},
-            {"id": 3, "title": "Distinctive mobile game global launch",
-             "url": "https://example.org/mobile", "source": "rss",
-             "suggested_category": "gaming", "published_at": now},
-            {"id": 4, "title": "Original Steam game launch",
-             "url": "https://example.org/pc", "source": "rss",
-             "suggested_category": "gaming", "published_at": now},
-            {"id": 5, "title": "TechCrunch Founder Summit 2026",
-             "url": "https://example.org/summit", "source": "rss",
-             "suggested_category": "finance", "published_at": now},
+        rows = [
+            {"id":1, "title":"Factory capacity outlook unexpectedly changed",
+             "url":"https://example.org/a", "source":"rss",
+             "publisher":"Semiconductor Engineering",
+             "suggested_category":"finance","published_at":now},
+            {"id":2, "title":"European banking oversight update",
+             "url":"https://example.org/b", "source":"rss",
+             "publisher":"TechCrunch Fintech",
+             "suggested_category":"finance","published_at":now},
+            {"id":3, "title":"Unrelated developer summit",
+             "url":"https://example.org/c", "source":"rss",
+             "publisher":"Unrelated publisher",
+             "suggested_category":"finance","published_at":now},
         ]
-        with patch("src.editorial_digest._request_ai",
-                   return_value='{"selected":[]}'):
-            picks = shortlist(raw, {"calls": 0, "latencies": []},
-                              target=20, oversample=True)
-        finance = [x for x in picks if x["category"] == "finance"]
-        games = [x for x in picks if x["category"] == "gaming"]
-        self.assertEqual(len(finance), 2)
-        self.assertEqual(len(games), 2)
-        self.assertFalse(any("Founder Summit" in x["title"] for x in finance))
+        with patch("src.editorial_digest._request_ai",return_value='{"selected":[]}'):
+            picks=shortlist(rows,{"calls":0,"latencies":[]},target=20,oversample=True)
+        finance=[p for p in picks if p["category"]=="finance"]
+        self.assertEqual(len(finance),2)
+        self.assertFalse(any("summit" in p["title"] for p in finance))
+
+    def test_game_no_keyword_can_be_selected_in_shared_ai(self):
+        now="2026-11-09T05:00:00+00:00"
+        row={"id":1,"title":"Astral Tide: Echoes chapter expansion",
+            "url":"https://example.org/a", "source":"rss",
+            "suggested_category":"gaming", "publisher":"Gematsu",
+            "published_at":now}
+        with patch("src.editorial_digest._request_ai",return_value=
+                   '{"selected":[{"id":1,"category":"gaming","importance":3}]}'):
+            chosen=shortlist([row],{"calls":0,"latencies":[]})
+        self.assertEqual(len(cap_selection(chosen)),1)
 
     def test_category_quota_is_one_slot_per_roundup(self):
         self.assertEqual(CATEGORIES["finance"][1], 1)

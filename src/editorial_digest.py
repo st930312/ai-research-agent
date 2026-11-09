@@ -22,6 +22,7 @@ from .v3_sources import github_releases, event_dedup
 from .wide_discord import format_wide_messages, send_wide_messages
 from .published_history import PublishedHistory, filter_published
 from .content_enrichment import enrich
+from .editorial_policy import industry_eligible, gaming_eligible
 from .tech_digest import API, MODEL
 
 CATEGORIES = {
@@ -252,6 +253,10 @@ def shortlist(candidates, metrics, target=DEFAULT_SELECT, oversample=False):
             category = "github"
             if quota[category] >= constraints[category]:
                 continue
+        if category == "finance" and not industry_eligible(lookup[ident]):
+            continue
+        if category == "gaming" and not gaming_eligible(lookup[ident]):
+            continue
         chosen.append({**lookup[ident], "category": category, "importance": importance})
         quota[category] += 1
         seen.add(ident)
@@ -278,7 +283,7 @@ def shortlist(candidates, metrics, target=DEFAULT_SELECT, oversample=False):
             if cat not in CATEGORIES or quota[cat] >= constraints[cat]:
                 continue
             # Never force a low-value game into a one-slot discovery column.
-            if cat == "gaming":
+            if cat == "gaming" or (cat == "finance" and not industry_eligible(row)):
                 continue
             chosen.append({**row, "category": cat, "importance": 1,
                            "selection_method": "metadata_backfill"})
@@ -422,6 +427,10 @@ def cap_selection(items, target=DEFAULT_SELECT):
     for row in items:
         category = row.get("category")
         if category not in CATEGORIES:
+            continue
+        if category == "finance" and not industry_eligible(row):
+            continue
+        if category == "gaming" and not gaming_eligible(row):
             continue
         if category in ("finance", "gaming"):
             if counters[category] == 0:

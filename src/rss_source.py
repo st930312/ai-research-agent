@@ -25,6 +25,10 @@ FEEDS = {
     "finance": [
         ("TechCrunch Fintech", "https://techcrunch.com/category/fintech/feed/"),
     ],
+    "tw_stock": [
+        ("Yahoo 股市 台股動態", "https://tw.stock.yahoo.com/rss?category=tw-market"),
+        ("中央社 產經證券", "https://feeds.feedburner.com/rsscna/finance"),
+    ],
 }
 UA = "AIResearchAgent/0.6 (RSS digest reader)"
 
@@ -90,7 +94,7 @@ def rss_discover(limit=5, fetcher=fetch_rss):
         for label, url in feeds:
             try:
                 rows = parse_feed(fetcher(url), label, category,
-                                  max(limit * 4, 20) if category == "gaming" else limit)
+                                  max(limit * 4, 20) if category in ("gaming", "tw_stock") else limit)
                 if category == "gaming":
                     # Favor Steam/PC games and major game releases over anime notices.
                     relevant = re.compile(
@@ -99,7 +103,21 @@ def rss_discover(limit=5, fetcher=fetch_rss):
                     preferred = re.compile(r"Steam|PC|電腦|獨立遊戲", re.I)
                     rows = [row for row in rows if relevant.search(row["title"])]
                     rows.sort(key=lambda row: (row.get("published_at") or "", bool(preferred.search(row["title"]))), reverse=True)
-                rows = rows[:max(limit, 12) if category == "gaming" else limit]
+                if category == "tw_stock":
+                    # All industries qualify, not only technology / AI.
+                    equity = re.compile(
+                        r"台股|台積|股票|股市|股價|股利|股息|上市|上櫃|櫃買|"
+                        r"大盤|加權|指數|外資|投信|法人|三大法人|融資|融券|"
+                        r"成交量|成交值|漲停|跌停|殖利率|ETF|個股|盤中|盤後|"
+                        r"金控|銀行股|航運股|營建股|傳產股|金融股|電子股|"
+                        r"營收|法說|財報|台灣證交所|證交所|櫃買中心", re.I
+                    )
+                    rows = [row for row in rows if
+                            label.startswith("Yahoo") or
+                            equity.search(row["title"] + " " + row.get("description", ""))]
+                    rows.sort(key=lambda row: row.get("published_at") or "", reverse=True)
+                rows = rows[:max(limit, 12) if category == "gaming" else
+                             max(limit, 10) if category == "tw_stock" else limit]
                 results.extend(rows)
                 counts[label] = len(rows)
             except Exception as exc:

@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
 from src.published_history import (
-    event_key, repo_name, release_tag, filter_published, PublishedHistory, normalized_title
+    event_key, repo_name, release_tag, filter_published, PublishedHistory, normalized_title, SCHEMA
 )
 
 class NeonHistoryTests(unittest.TestCase):
@@ -63,6 +63,29 @@ class NeonHistoryTests(unittest.TestCase):
         row = {"url": "https://github.com/owner/project", "title": "owner/project new stars",
                "source": "github_search", "score": 50000}
         self.assertEqual(filter_published([row], [old])[1], 1)
+
+    def test_schema_persists_event_evidence_and_release_identity(self):
+        for col in ("event_summary", "article_summary", "event_entities",
+                    "event_type", "release_tag", "source_urls"):
+            self.assertIn(col, SCHEMA)
+
+    def test_tracking_previously_published_repo_discovers_later_release(self):
+        from src.editorial_digest import main
+        latest = datetime.now(timezone.utc).isoformat()
+        historical = {"event_key": "old", "title": "owner/project",
+                      "category": "github", "source": "github_search",
+                      "repo": "owner/project", "published_at": datetime.now(timezone.utc)}
+        release = {"title": "owner/project v2.0", "source": "github_release",
+                   "url": "https://github.com/owner/project/releases/tag/v2.0",
+                   "published_at": latest, "suggested_category": "dev", "tag": "v2.0"}
+        with patch.dict("os.environ", {"DATABASE_URL": "postgresql://example",
+                                       "ENABLE_REAL_AI": "false"}, clear=True), \
+             patch("src.editorial_digest.collect_candidates", return_value=([], {})), \
+             patch("src.editorial_digest.PublishedHistory") as db, \
+             patch("src.editorial_digest.github_releases", return_value=([release], {})) as releases:
+            db.return_value.recent.return_value = [historical]
+            main()
+            releases.assert_called_once_with(limit=12, repos=["owner/project"])
 
     def test_no_credentials_does_not_leak_or_connect(self):
         with patch.dict("os.environ", {}, clear=True):

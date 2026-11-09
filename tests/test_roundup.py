@@ -68,6 +68,20 @@ class RoundupTests(unittest.TestCase):
             result = shortlist(rows, {"calls": 0, "latencies":[]})
         self.assertFalse(any(row["category"] == "gaming" for row in result))
 
+    def test_flexible_slot_requires_high_quality_approved_article(self):
+        base = [self.sample("ai", n, f"AI story {n}") for n in range(1, 6)]
+        for row in base:
+            row["importance"] = 3
+        chosen = cap_selection(base)
+        self.assertEqual(len(chosen), 5)  # AI quota four plus one optional flex
+        self.assertEqual(sum(x["category"] == "ai" for x in chosen), 5)
+
+    def test_weak_flexible_candidate_not_forced(self):
+        base = [self.sample("ai", n, f"AI story {n}") for n in range(1, 6)]
+        base[-1]["importance"] = 1
+        chosen = cap_selection(base)
+        self.assertEqual(len(chosen), 4)
+
     def test_category_quota_is_one_slot_per_roundup(self):
         self.assertEqual(CATEGORIES["finance"][1], 1)
         self.assertEqual(CATEGORIES["gaming"][1], 1)

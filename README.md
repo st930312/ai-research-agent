@@ -1,4 +1,4 @@
-# Technology Intelligence Feed V4.2
+# Technology Intelligence Feed V4.2 (validated-body publishing)
 
 15-story Traditional-Chinese technology, games, and Taiwan stock-market briefing. GitHub Actions + NVIDIA NIM + Discord wide-format Markdown.
 
@@ -88,3 +88,7 @@ The [V3 Manual workflow](https://github.com/st930312/ai-research-agent/actions/w
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+## Corrections and no-placeholder publishing
+
+Every drafted article must have a substantial, non-placeholder body before any Discord send. An incomplete batch fails the workflow and writes no publication history rather than posting a headline-only digest. The one-time `v42-body-repair.yml` re-drafts only the three gaming and three semiconductor sources from the 2026-11-09 V4.2 delivery. It verifies both complete summaries before posting the correction and does not create duplicate history rows.

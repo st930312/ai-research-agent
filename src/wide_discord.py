@@ -20,7 +20,9 @@ def safe(value):
 
 def article_text(row, index):
     title = safe(row.get("title") or "未命名")[:150]
-    body = str(row.get("ai_description") or "尚無摘要，請參考原文").strip()
+    body = str(row.get("ai_description") or "").strip()
+    if not body or "本則 AI 摘要未完整產生" in body or "尚無摘要" in body:
+        raise ValueError("Discord article has no real body; refusing to format")
     body = re.sub(r"@(everyone|here)", lambda m: "@\u200b" + m.group(1), body, flags=re.I)
     # Preserve meaningful paragraphs; do not reproduce malformed markdown headers.
     body = re.sub(r"(?m)^\s*#{1,6}\s+", "", body)

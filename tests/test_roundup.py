@@ -44,7 +44,7 @@ class RoundupTests(unittest.TestCase):
         captured = {}
         def fake_ai(messages, max_tokens, metrics):
             captured["messages"] = messages
-            return '{"articles":[{"id":1,"description":"全球產業需求、供應鏈與監管趨勢的整理。"}]}'
+            return __import__("json").dumps({"articles":[{"id":1,"description":"全球產業供應鏈與監管的重要事件，需以資料來源逐項核對、區分已確認事實和產業推論。" * 6}]},ensure_ascii=False)
         with patch("src.editorial_digest._request_ai", side_effect=fake_ai), \
              patch("src.editorial_digest.enrich", side_effect=lambda row: {**row, "body_status": "ok"}):
             result = draft(cap_selection(rows), {"calls": 0, "latencies": []})

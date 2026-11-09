@@ -563,7 +563,7 @@ def draft(selected, metrics):
         answer = _request_ai([
             {"role": "system", "content": instruction},
             {"role": "user", "content": json.dumps(sources, ensure_ascii=False)}
-        ], max_tokens=2500, metrics=metrics)
+        ], max_tokens=4400, metrics=metrics)
         obj = _parse_json(answer)
         descriptions = {}
         for row in obj.get("articles", []):
@@ -578,9 +578,13 @@ def draft(selected, metrics):
                 descriptions[ident] = description.strip()[:650]
         for row in batch:
             desc = descriptions.get(row["id"])
-            if not desc:
-                # Surface a controlled, explicit fallback instead of inventing text.
-                desc = "本則 AI 摘要未完整產生，請閱讀來源。"
+            # Missing/short text is a failed generation, not a publishable article.
+            # Never send a headline + links in place of the user-requested body.
+            if not desc or len(desc) < (150 if row.get("category") in ("gaming", "finance") else 90):
+                raise RuntimeError(
+                    f"INCOMPLETE_AI_BODY category={row.get('category')} id={row['id']} "
+                    f"length={len(desc or '')}; publication blocked"
+                )
             if row.get("category") == "finance":
                 label = "全球半導體與金融科技產業觀察"
             elif row.get("category") == "gaming":
@@ -590,6 +594,23 @@ def draft(selected, metrics):
             drafted.append({**row, "published_title": row.get("title"),
                             "title": label, "ai_description": desc})
     return drafted
+
+
+def validate_draft_bodies(articles):
+    """Enforce complete user-visible copy before *any* webhook POST."""
+    if not articles:
+        raise RuntimeError("No drafted articles; publication blocked")
+    for row in articles:
+        text = row.get("ai_description")
+        min_len = 150 if row.get("category") in ("gaming", "finance") else 90
+        if not isinstance(text, str) or len(text.strip()) < min_len:
+            raise RuntimeError(
+                f"INCOMPLETE_AI_BODY category={row.get('category')} "
+                f"id={row.get('id')} length={len(text or '')}; publication blocked"
+            )
+        if "本則 AI 摘要未完整產生" in text or "尚無摘要" in text:
+            raise RuntimeError("Placeholder body forbidden; publication blocked")
+
 
 def _safe_text(value):
     # Avoid Discord mass pings and markdown-related surprises from untrusted titles.
@@ -707,6 +728,7 @@ def main():
     selected = cap_selection(selected)
     print(f"SELECTED={len(selected)} BY_CATEGORY={dict(Counter(x['category'] for x in selected))}", flush=True)
     articles = draft(selected, metrics)
+    validate_draft_bodies(articles)
     messages = format_wide_messages(articles, CATEGORIES)
     for i, message in enumerate(messages, 1):
         print(f"===== DISCORD WIDE PREVIEW {i}/{len(messages)} =====")

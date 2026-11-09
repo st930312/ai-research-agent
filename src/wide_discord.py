@@ -7,6 +7,8 @@ import time
 import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 MAX_CONTENT = 1900
 SPACER = "\u200b\n\n"
@@ -53,15 +55,16 @@ def split_long_article(piece, limit):
         parts.append(rest)
     return parts
 
-def format_wide_messages(articles, categories):
+def format_wide_messages(articles, categories, issue_date=None):
     """Use one heading per category; keep same-category chunks visually contiguous.
 
     Discord limits content to 2,000 characters. Split at article boundaries
     whenever possible, with no repeated heading/outer spacer within a category.
     """
     total = len(articles)
+    issue_date = issue_date or datetime.now(ZoneInfo("Asia/Taipei")).date()
     summary = (
-        "# 🛰️ 今日科技快訊\n"
+        f"# 🛰️ {issue_date:%Y/%m/%d} 科技快訊\n"
         f"-# 共 {total} 則｜繁體中文科技情報\n\n"
         "依分類閱讀：AI、開源、軟體工程、科技產業、電玩、金融科技、台灣股市。"
     )

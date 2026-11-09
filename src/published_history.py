@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS published_events (
 );
 CREATE INDEX IF NOT EXISTS published_events_time ON published_events (published_at DESC);
 CREATE INDEX IF NOT EXISTS published_events_repo ON published_events (repo, published_at DESC);
+ALTER TABLE published_events ADD COLUMN IF NOT EXISTS event_summary TEXT NOT NULL DEFAULT '';
+ALTER TABLE published_events ADD COLUMN IF NOT EXISTS event_entities JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE published_events ADD COLUMN IF NOT EXISTS event_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE published_events ADD COLUMN IF NOT EXISTS release_tag TEXT;
+ALTER TABLE published_events ADD COLUMN IF NOT EXISTS source_urls JSONB NOT NULL DEFAULT '[]'::jsonb;
 """
 
 def repo_name(row):
@@ -33,6 +38,15 @@ def repo_name(row):
 def event_key(row):
     return hashlib.sha256(canonical_url(row.get("url") or "").encode("utf-8")).hexdigest()
 
+def release_tag(row):
+    if row.get("source") != "github_release":
+        return None
+    if row.get("tag"):
+        return str(row["tag"]).strip().lower()
+    parts = urlsplit(row.get("url") or "").path.split("/releases/tag/", 1)
+    return parts[1].strip("/").lower() if len(parts) == 2 else None
+
+
 def normalized_title(title):
     title = re.sub(r"[^\w\u4e00-\u9fff]+", " ", (title or "").lower())
     return " ".join(title.split())
@@ -42,7 +56,7 @@ def filter_published(candidates, history):
     from datetime import datetime, timedelta, timezone
     now = datetime.now(timezone.utc)
     urls = {h["event_key"] for h in history}
-    titles = [normalized_title(h.get("title")) for h in history]
+    titles = [(normalized_title(h.get("title")), h.get("category")) for h in history]
     blocked_repos = set()
     for h in history:
         if h.get("repo") and h.get("source") == "github_search":
@@ -53,12 +67,24 @@ def filter_published(candidates, history):
     for row in candidates:
         title = normalized_title(row.get("title"))
         repo = repo_name(row)
+        is_release = row.get("source") == "github_release"
+        same_release = (
+            is_release and repo and release_tag(row) and any(
+                old.get("repo") == repo
+                and old.get("release_tag") == release_tag(row)
+                for old in history
+            )
+        )
+        # A new release is a distinct event, even when repo/title is similar.
+        # AI event audit judges whether the release is substantively newsworthy.
         duplicate = (
             event_key(row) in urls
+            or same_release
             or (row.get("source") == "github_search" and repo in blocked_repos)
-            or (bool(title) and any(
-                SequenceMatcher(None, title, prior).ratio() >= 0.88
-                for prior in titles if prior
+            or (not is_release and bool(title) and any(
+                (row.get("suggested_category") or row.get("category")) == old_category
+                and SequenceMatcher(None, title, prior).ratio() >= 0.88
+                for prior, old_category in titles if prior
             ))
         )
         if duplicate:
@@ -95,7 +121,8 @@ class PublishedHistory:
         with self.connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT event_key, url, title, category, source, repo, published_at "
+                    "SELECT event_key, url, title, category, source, repo, published_at, "
+                    "event_summary, event_entities, event_type, release_tag, source_urls "
                     "FROM published_events WHERE published_at >= NOW() - (%s * INTERVAL '1 day') "
                     "ORDER BY published_at DESC LIMIT 2500", (days,)
                 )
@@ -105,14 +132,25 @@ class PublishedHistory:
     def mark_sent(self, articles):
         if not articles:
             return 0
+        from psycopg.types.json import Jsonb
         with self.connect() as conn:
             with conn.cursor() as cur:
                 for row in articles:
                     cur.execute(
-                        "INSERT INTO published_events (event_key, url, title, category, source, repo) "
-                        "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (event_key) DO NOTHING",
+                        "INSERT INTO published_events "
+                        "(event_key, url, title, category, source, repo, event_summary, "
+                        "event_entities, event_type, release_tag, source_urls) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                        "ON CONFLICT (event_key) DO NOTHING",
                         (event_key(row), canonical_url(row["url"]), row.get("title") or "",
-                         row.get("category") or "", row.get("source") or "", repo_name(row))
+                         row.get("category") or "", row.get("source") or "", repo_name(row),
+                         (row.get("ai_description") or row.get("event_summary")
+                          or row.get("description") or "")[:800],
+                         Jsonb(list(row.get("event_entities") or [])[:12]),
+                         str(row.get("event_type") or "")[:80], release_tag(row),
+                         Jsonb(list(dict.fromkeys(
+                             [row["url"]] + list(row.get("related_urls") or [])
+                         ))[:8]))
                     )
         return len(articles)
 

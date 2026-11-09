@@ -3,3 +3,6 @@ __pycache__/
 .env
 output/
 .venv/
+
+.env.local
+.env.*.local

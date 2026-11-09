@@ -63,7 +63,7 @@ def format_wide_messages(articles, categories):
     summary = (
         "# 🛰️ 今日科技快訊\n"
         f"-# 共 {total} 則｜繁體中文科技情報\n\n"
-        "依分類閱讀：AI、開源、軟體工程、科技產業、電玩、金融科技。"
+        "依分類閱讀：AI、開源、軟體工程、科技產業、電玩、金融科技、台灣股市。"
     )
     messages = [SPACER + summary + ENDING]
     for category, (heading, _quota, _color) in categories.items():

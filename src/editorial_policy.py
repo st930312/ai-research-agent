@@ -29,7 +29,7 @@ INDUSTRY_BLOCKED_HOSTS = {"github.com", "www.github.com", "youtube.com",
 GAME_LOW_VALUE = re.compile(
     r"事前登錄|預先登錄|預約註冊|預約活動|"
     r"盒裝版|實體版|典藏版|合集|重新上架|折扣|降價|特價|促銷|"
-    r"bundle|physical edition|pre.registration|discount|price cut|"
+    r"bundle|physical edition|pre.registration|preregistration|discount|price cut|"
     r"周年紀念|週年紀念", re.I,
 )
 GAME_HIGH_VALUE = re.compile(

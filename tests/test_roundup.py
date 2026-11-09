@@ -82,6 +82,35 @@ class RoundupTests(unittest.TestCase):
         chosen = cap_selection(base)
         self.assertEqual(len(chosen), 4)
 
+    def test_finance_and_games_get_verified_reserve_candidates(self):
+        now = "2026-11-09T05:00:00+00:00"
+        raw = [
+            {"id": 1, "title": "Major semiconductor wafer equipment demand",
+             "url": "https://example.org/semiconductor", "source": "rss",
+             "suggested_category": "tech", "published_at": now},
+            {"id": 2, "title": "Digital banking payments regulation in Europe",
+             "url": "https://example.org/banking", "source": "rss",
+             "suggested_category": "finance", "published_at": now},
+            {"id": 3, "title": "Distinctive mobile game global launch",
+             "url": "https://example.org/mobile", "source": "rss",
+             "suggested_category": "gaming", "published_at": now},
+            {"id": 4, "title": "Original Steam game launch",
+             "url": "https://example.org/pc", "source": "rss",
+             "suggested_category": "gaming", "published_at": now},
+            {"id": 5, "title": "TechCrunch Founder Summit 2026",
+             "url": "https://example.org/summit", "source": "rss",
+             "suggested_category": "finance", "published_at": now},
+        ]
+        with patch("src.editorial_digest._request_ai",
+                   return_value='{"selected":[]}'):
+            picks = shortlist(raw, {"calls": 0, "latencies": []},
+                              target=20, oversample=True)
+        finance = [x for x in picks if x["category"] == "finance"]
+        games = [x for x in picks if x["category"] == "gaming"]
+        self.assertEqual(len(finance), 2)
+        self.assertEqual(len(games), 2)
+        self.assertFalse(any("Founder Summit" in x["title"] for x in finance))
+
     def test_category_quota_is_one_slot_per_roundup(self):
         self.assertEqual(CATEGORIES["finance"][1], 1)
         self.assertEqual(CATEGORIES["gaming"][1], 1)

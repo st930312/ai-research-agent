@@ -37,7 +37,16 @@ def article_text(row, index):
     if row.get("body_status") != "ok":
         details.append("⚠️ 來源正文未取得")
     extra = ("\n-# " + " · ".join(details)) if details else ""
-    return f"## {index:02d}｜{title}\n\n{body}\n\n🔗 來源：{url}{extra}"
+    # Each independent roundup event must retain an auditable source link.
+    sources = list(dict.fromkeys(
+        source.get("url", "") for source in row.get("roundup_sources", [])
+        if isinstance(source, dict) and source.get("url", "").startswith(("https://", "http://"))
+    ))
+    related = "".join(
+        f"\n🔗 延伸來源 {num}：{link}"
+        for num, link in enumerate(sources, 1) if link != url
+    )
+    return f"## {index:02d}｜{title}\n\n{body}\n\n🔗 來源：{url}{related}{extra}"
 
 def split_long_article(piece, limit):
     """Fallback: split at a paragraph/line rather than truncate model output."""

@@ -20,6 +20,7 @@ from .github_source import github_discover
 from .rss_source import rss_discover
 from .v3_sources import github_releases, event_dedup
 from .wide_discord import format_wide_messages, send_wide_messages
+from .published_history import PublishedHistory, filter_published
 from .content_enrichment import enrich
 from .tech_digest import API, MODEL
 
@@ -409,6 +410,17 @@ def main():
     metrics = {"calls": 0, "latencies": []}
     candidates, counts = collect_candidates()
     print(f"COLLECTED={len(candidates)} SOURCE_COUNTS={counts}", flush=True)
+    database = None
+    if os.getenv("DATABASE_URL"):
+        database = PublishedHistory()
+        database.setup_and_probe()
+        history = database.recent()
+        candidates, skipped = filter_published(candidates, history)
+        for index, row in enumerate(candidates, 1):
+            row["id"] = index
+        print(f"HISTORY_LOADED={len(history)} HISTORY_FILTERED={skipped} REMAINING={len(candidates)}", flush=True)
+    elif os.getenv("SEND_DISCORD") == "true":
+        raise RuntimeError("DATABASE_URL missing: refusing to send without duplicate tracking")
     if not candidates:
         raise RuntimeError("No candidates")
     if os.getenv("ENABLE_REAL_AI") != "true":
@@ -426,7 +438,11 @@ def main():
         "drafted": len(articles), "wide_messages": len(messages),
     }, ensure_ascii=False), flush=True)
     if os.getenv("SEND_DISCORD") == "true":
+        if database is None:
+            raise RuntimeError("DATABASE_URL missing: cannot track published news")
         send_wide_messages(messages)
+        database.mark_sent(articles)
+        print(f"HISTORY_RECORDED={len(articles)}", flush=True)
         print("DISCORD_SENT=true", flush=True)
     else:
         print("DISCORD_SENT=false (preview)", flush=True)

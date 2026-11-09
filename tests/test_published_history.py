@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
 from src.published_history import (
-    event_key, repo_name, filter_published, PublishedHistory, normalized_title
+    event_key, repo_name, release_tag, filter_published, PublishedHistory, normalized_title
 )
 
 class NeonHistoryTests(unittest.TestCase):
@@ -34,6 +34,35 @@ class NeonHistoryTests(unittest.TestCase):
              "source": "rss"}
         ]
         self.assertEqual(filter_published(rows, [old])[1], 1)
+
+    def test_new_important_release_same_repo_is_not_preemptively_removed(self):
+        old = {"event_key": "old-release", "title": "owner/project — v1.0",
+               "source": "github_release", "repo": "owner/project",
+               "release_tag": "v1.0", "category": "dev",
+               "published_at": datetime.now(timezone.utc)}
+        new = {"url": "https://github.com/owner/project/releases/tag/v2.0",
+               "title": "owner/project — v2.0", "tag": "v2.0",
+               "source": "github_release", "suggested_category": "dev"}
+        self.assertEqual(filter_published([new], [old])[1], 0)
+        self.assertEqual(release_tag(new), "v2.0")
+
+    def test_same_release_different_url_still_filtered(self):
+        old = {"event_key": "old-release", "title": "owner/project — v2.0",
+               "source": "github_release", "repo": "owner/project",
+               "release_tag": "v2.0", "category": "dev",
+               "published_at": datetime.now(timezone.utc)}
+        row = {"url": "https://github.com/owner/project/releases/tag/v2.0?foo=bar",
+               "title": "Critical owner project release", "source": "github_release",
+               "suggested_category": "dev"}
+        self.assertEqual(filter_published([row], [old])[1], 1)
+
+    def test_same_repo_stars_alone_is_not_a_major_update(self):
+        old = {"event_key": "old-repo", "title": "owner/project",
+               "source": "github_search", "repo": "owner/project",
+               "published_at": datetime.now(timezone.utc)}
+        row = {"url": "https://github.com/owner/project", "title": "owner/project new stars",
+               "source": "github_search", "score": 50000}
+        self.assertEqual(filter_published([row], [old])[1], 1)
 
     def test_no_credentials_does_not_leak_or_connect(self):
         with patch.dict("os.environ", {}, clear=True):

@@ -21,11 +21,11 @@ def fetch_release_json(url):
     with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=15) as response:
         return json.load(response)
 
-def github_releases(limit=6, fetcher=fetch_release_json):
-    """Track noteworthy stable releases from a small explicit allowlist."""
+def github_releases(limit=6, fetcher=fetch_release_json, repos=None):
+    """Discover stable releases in curated or historically recommended repositories."""
     results = []
     counts = {}
-    for full_name in TRACKED_REPOS:
+    for full_name in (TRACKED_REPOS if repos is None else repos):
         try:
             data = fetcher(f"https://api.github.com/repos/{full_name}/releases?per_page=2")
             rows = []
@@ -34,7 +34,7 @@ def github_releases(limit=6, fetcher=fetch_release_json):
                 if release.get("draft") or release.get("prerelease") or IGNORED_RELEASE.search(tag):
                     continue
                 url = release.get("html_url") or ""
-                if not url.startswith(f"https://github.com/{full_name}/releases/tag/"):
+                if not url.lower().startswith(f"https://github.com/{full_name}/releases/tag/".lower()):
                     continue
                 rows.append({
                     "title": f"{full_name} — {release.get('name') or tag}",

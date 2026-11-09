@@ -468,10 +468,16 @@ def cap_selection(items, target=DEFAULT_SELECT):
 def draft(selected, metrics):
     enriched = []
     for row in selected:
+        # Roundup sub-stories are independent evidence. Read their article
+        # excerpts too, rather than extrapolating from headlines alone.
+        extras = [
+            enrich(extra) for extra in row.get("roundup_sources", [])
+        ]
         if row.get("source") == "github_release" and row.get("body_excerpt"):
-            enriched.append({**row, "body_status": "ok", "body_kind": "github_release_notes"})
+            primary = {**row, "body_status": "ok", "body_kind": "github_release_notes"}
         else:
-            enriched.append(enrich(row))
+            primary = enrich(row)
+        enriched.append({**primary, "roundup_sources": extras})
     drafted = []
     for i in range(0, len(enriched), 3):
         batch = enriched[i:i + 3]
@@ -489,6 +495,8 @@ def draft(selected, metrics):
                 "description": (extra.get("description") or "")[:260],
                 "event_summary": (extra.get("event_summary") or "")[:250],
                 "published_at": extra.get("published_at"),
+                "body_status": extra.get("body_status"),
+                "excerpt": (extra.get("body_excerpt") or "")[:750],
             } for extra in row.get("roundup_sources", [])],
         } for row in batch]
         instruction = (

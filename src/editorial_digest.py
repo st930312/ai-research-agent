@@ -418,6 +418,7 @@ def cap_selection(items, target=DEFAULT_SELECT):
     """
     counters = Counter()
     kept = []
+    flexible = []
     for row in items:
         category = row.get("category")
         if category not in CATEGORIES:
@@ -433,11 +434,19 @@ def cap_selection(items, target=DEFAULT_SELECT):
                     primary["roundup_sources"].append(row)
             continue
         if counters[category] >= CATEGORIES[category][1]:
+            # A single additional high-value story is allowed outside rigid
+            # quotas. Never fill that slot with low-confidence metadata.
+            if (category in ("ai", "github", "dev", "tech")
+                    and row.get("importance", 1) >= 2
+                    and row.get("selection_method") != "metadata_backfill"):
+                flexible.append(row)
             continue
         kept.append(row)
         counters[category] += 1
         if len(kept) == target:
             break
+    if len(kept) < target and flexible:
+        kept.append(max(flexible, key=lambda row: row.get("importance", 1)))
     for row in kept:
         if row.get("roundup_sources"):
             row["related_urls"] = list(dict.fromkeys(

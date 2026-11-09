@@ -58,19 +58,19 @@ python -m src.published_history
 python -m src.editorial_digest
 ```
 
-The history database holds only published news metadata, **not complete reports**. The pipeline checks the past 90 days, filters repeated links and near-identical headlines, and cools down recently recommended GitHub repositories. It writes publication records only after all Discord messages successfully send. A partial Discord webhook failure can still deliver some messages without recording their state; per-message idempotency remains a future improvement. A live Discord send without `DATABASE_URL` fails closed to avoid losing publication history.
+The Neon history table holds event-identity summaries, full drafted article summaries, key entities, event type, original/related source links, and GitHub release tags (not complete daily reports). The pipeline checks 90 days of news, filters repeated links and near-identical headlines, and cools down repeated GitHub repository recommendations. It **actively checks new formal releases of previously recommended repos**; different versions can enter the candidate pool, but the AI audit must confirm a meaningful feature, compatibility, or security change. It writes publication records only after all Discord messages successfully send. A partial Discord webhook failure can still deliver some messages without recording their state; per-message idempotency remains a future improvement. A live Discord send without `DATABASE_URL` fails closed to avoid losing publication history.
 
 The [V3 Manual workflow](https://github.com/st930312/ai-research-agent/actions/workflows/v3-tech-digest.yml) runs offline Python tests and checks the database if configured; manual `live_ai` and `send_discord` toggles control AI and delivery. There is no daily schedule.
 
-**Verification status on 2026-11-09:** Previous GitHub Actions tests passed and candidate collection worked, but live Neon connectivity was **not verified**, because `DATABASE_URL` was absent from GitHub Actions Secrets. No DB provision, deployment, or live table writes are claimed.
+**Verification status on 2026-11-09:** GitHub Actions confirmed Neon connectivity and schema migration. Fourteen articles actually sent to Discord on 2026-11-09 were recovered from that workflow's public output and added to the Neon history with original URLs and summarized content. V4 preview acceptance runs without sending Discord (`.github/workflows/v4-semantic-preview.yml`).
 
 ## Safety, cost, limitations
 
 - **No daily schedule or report/artifact storage**. Publication metadata is stored in Neon PostgreSQL when configured.
 - No SearXNG server currently needed.
 - Sourced text is untrusted input, not commands. AI is prompted not to fabricate dates or metrics.
-- GitHub release discovery uses only a small curated repository list, and stable, recent releases.
-- Cross-source event matching is conservative title similarity. Different wording of the same story may still pass; future improvements could use AI semantic clustering.
+- GitHub release discovery checks a curated base list and up to 12 recently published repositories from Neon, using stable, recent releases. Star-count increases alone are not a significant update.
+- Cross-source matching combines cheap URL/headline filters with a dedicated NVIDIA semantic-event audit. Different wording describing one real event should become one story. The audit is probabilistic (not a guarantee against every duplicate), and malformed or incomplete model output causes the run to stop rather than sending unchecked content.
 - If source body is unavailable the post is flagged. Publisher content is used only as short reference excerpts, with links to original sources.
 - Publisher RSS feeds and provider limits can change; checks and exceptions are logged.
 - **Old workflows remain for development and testing**. Use the V3 workflow for current digests.

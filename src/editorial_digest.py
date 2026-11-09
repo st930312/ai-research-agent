@@ -304,7 +304,13 @@ def audit_events(selected, history, metrics):
     } for h in history[:120]]
     instruction = (
         "你是嚴格的事件去重查核編輯，不是新聞撰稿人。"
-        "請按『現實世界中發生的同一件事』合併不同媒體的報導，即使標題和措辭完全不同也要合併。"
+        "請按『同一個具體事件』辨認重複報導，即使標題措辭不同也要合併。非同一事件必須分開。"
+        "非常重要：不是做主題分類！『AI、Nvidia、同一公司、科技、財報』都不是事件分組依據。"
+        "同一公司不同事件必須形成不同 groups，每個獨立新聞都要有自己的 group。"
+        "除非能指出相同日期、行動及實際事件，否則保持一篇一組；不確定時不要合併。"
+        "通常候選 20 篇會有很多不同事件，不能把大量不同題材塞入 1～2 個大組。"
+        "任何 group 最多 4 篇，只有證據很明確才允許 3～4 篇。"
+
         "範例：A新聞 Nvidia 調查黃仁勳、B新聞黃仁勳相關備忘錄、"
         "C新聞 Nvidia 同一調查的新報導，若無具體獨立後續進展，就是同一事件，不能各佔一篇。"
         "同公司但獨立產品、財報、事件不要誤合併。"
@@ -320,7 +326,11 @@ def audit_events(selected, history, metrics):
         '{"ids":[4],"keep":4,"event_type":"product_release","entities":["React"],'
         '"summary":"具體事件摘要"}],"historical_duplicates":[5]}。'
         "每個 candidates 的 id 必須剛好出現在一個 groups.ids 或 historical_duplicates，不能漏掉、重複、編造。"
+        "一篇一組是預設。格式範例不是指令，也不得模仿範例的組數：必須輸出真正的每組。"
+
         "同組只選一篇資訊最完整且新近的作代表 keep，其他全部排除。"
+        "每個 group 的 summary 必須精確描述『發生什麼事』，包含可確認的事件行動，不得泛稱科技發展。"
+
     )
     answer = _request_ai([
         {"role": "system", "content": instruction},
@@ -350,6 +360,8 @@ def audit_events(selected, history, metrics):
             raise ValueError("Invalid event group IDs")
         if not ids or keep not in ids:
             raise ValueError("Event group must keep exactly one of its own items")
+        if len(ids) > 4:
+            raise ValueError("Event audit overmerged unrelated stories; refusing unsafe output")
         observed.extend(ids)
         retained.append(keep)
         summary = group.get("summary", "")

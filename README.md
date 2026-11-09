@@ -1,6 +1,6 @@
 # Technology Intelligence Feed V3
 
-15-story Traditional-Chinese technology and games briefing. GitHub Actions + NVIDIA NIM + Discord wide-format Markdown.
+15-story Traditional-Chinese technology, games, and Taiwan stock-market briefing. GitHub Actions + NVIDIA NIM + Discord wide-format Markdown.
 
 ## News selection
 
@@ -8,9 +8,10 @@ Target 15 current stories (as many as 10–20 only when strong sources exist):
 - AI / LLM / Agent **4**
 - GitHub Open Source **2**
 - Software Engineering / DevOps **2**
-- Technology Industry / New Technology **4**
+- Technology Industry / New Technology **3**
 - Gaming / Steam **2**
 - Fintech / Semiconductors **1**
+- Taiwan Stock Market (all sectors) **1**
 
 AI writes up to 200–500 Traditional-Chinese characters per story, adjusted to available evidence. The system discourages padding or unsupported claims.
 
@@ -19,6 +20,7 @@ AI writes up to 200–500 Traditional-Chinese characters per story, adjusted to 
 - Hacker News Algolia: recent stories (7 days), searched by date
 - TechCrunch AI / Fintech; Ars Technica AI / Science / Technology Lab; The Verge
 - **Bahamut GNN** RSS, with Steam/PC and game-news relevance preference
+- **Yahoo Taiwan Stock** Taiwan-market RSS and **CNA** finance and securities RSS; select across all industries, financial stocks, shipping, traditional sectors, index moves, foreign institutional flows, regulatory announcements, and individual company earnings, not just technology/AI
 - **The Register** DevOps RSS
 - GitHub recently created project search (not official Trending)
 - **GitHub Releases** for curated established projects (Go, React, Moby/Docker, Redis, Docker Compose, Kubernetes)

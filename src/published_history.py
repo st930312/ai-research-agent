@@ -30,6 +30,12 @@ CREATE TABLE IF NOT EXISTS publication_messages (
  sent_at TIMESTAMPTZ,
  PRIMARY KEY (digest_key, message_index)
 );
+CREATE TABLE IF NOT EXISTS publication_events (
+ event_key TEXT PRIMARY KEY,
+ digest_key TEXT NOT NULL,
+ status TEXT NOT NULL CHECK (status IN ('reserved','sent')),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 CREATE TABLE IF NOT EXISTS pipeline_runs (
  run_id TEXT PRIMARY KEY,
  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

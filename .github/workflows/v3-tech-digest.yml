@@ -1,24 +1,9 @@
-# V4.1 reserved source-driven industry and game discovery final checks, offline only.
-# V4.1 verify strict global industry/game source filters and mobile launch eligibility; no Discord.
-# V4.1 source-grounded finance + game eligibility and independent roundup evidence; no Discord.
-# V4.1 final regression: 14 baseline + optional flex, finance and game roundups; no Discord.
-# V4.1 validate global industry + gaming curated roundups, Neon metadata; no AI/Discord.
-# Verify legacy URL hash compatibility with Neon publication history; zero AI and Discord.
-# V4 rich Neon event history and tracked GitHub release verification; no AI or Discord.
-# Verify V4 semantic summaries and GitHub release exception; no AI or Discord.
-# Neon DATABASE_URL integration verification 2026-11-09 (no AI, no Discord).
-# Pure Python: validate tests, optional Neon connection and news collection.
-# Validate dated first Discord heading and all V3 source tests with no AI.
-# Test broad Taiwan stock news RSS and one-story independent category; AI and Discord disabled.
-# Revalidate category continuation after spacing tests corrected.
-# Run offline tests for contiguous category continuation layout.
-# Recheck V3 source discovery, Discord long-story splitting, and all unit tests.
-name: V3 Technology Briefing - Manual
+name: Technology Briefing - Daily 08:30 Asia/Taipei
 
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/v3-tech-digest.yml']
+  schedule:
+    # GitHub Actions uses UTC: 00:30 UTC = 08:30 Asia/Taipei (UTC+8).
+    - cron: '30 0 * * *'
   workflow_dispatch:
     inputs:
       live_ai:
@@ -33,40 +18,36 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: technology-digest-publish
+  cancel-in-progress: false
+
 jobs:
-  v3:
+  daily:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    concurrency:
-      group: technology-digest-publish
-      cancel-in-progress: false
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install Neon PostgreSQL driver
+      - name: Install dependencies
         run: python -m pip install -r requirements.txt
       - name: Build and test application
         run: |
           python -m compileall -q src tests
           python -m unittest discover -s tests -v
-      - name: Neon PostgreSQL end-to-end smoke check (if configured)
+      - name: Neon PostgreSQL smoke check
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          if [ -n "$DATABASE_URL" ]; then
-            python -m src.published_history
-          else
-            echo "NEON_SMOKE=SKIPPED (DATABASE_URL secret missing)"
-          fi
+        run: python -m src.published_history
       - name: Sources and optional NVIDIA / Discord
         env:
           GH_TOKEN: ${{ github.token }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          ENABLE_REAL_AI: ${{ github.event_name == 'workflow_dispatch' && inputs.live_ai && 'true' || 'false' }}
-          SEND_DISCORD: ${{ github.event_name == 'workflow_dispatch' && inputs.live_ai && inputs.send_discord && 'true' || 'false' }}
+          # Scheduled runs publish automatically. Manual runs remain opt-in.
+          ENABLE_REAL_AI: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.live_ai) && 'true' || 'false' }}
+          SEND_DISCORD: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.live_ai && inputs.send_discord) && 'true' || 'false' }}
         run: python -u -m src.editorial_digest
-# No cron, no persistence, no paid fallback.

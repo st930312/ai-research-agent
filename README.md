@@ -71,10 +71,7 @@ tracks each message as pending/sent. An ambiguous network failure is **not
 automatically retried**; check Discord and reconcile the ledger manually before
 another delivery. This intentionally favors avoiding duplicates over automatic
 recovery. Database-backed `pipeline_runs` also stores source counts, AI
-latencies, draft counts and delivery status. A conservative numeric-claim guard
-blocks percentage and high-impact financial quantities not found in the fetched
-source excerpts; this is **not comprehensive factual verification**.
-
+latencies, draft counts and delivery status. 
 The pipeline checks 90 days of news, filters repeated links and near-identical headlines, and cools down repeated GitHub repository recommendations. It **actively checks new formal releases of previously recommended repos**; different versions can enter the candidate pool, but the AI audit must confirm a meaningful feature, compatibility, or security change. It writes publication records only after all Discord messages successfully send. Partial Discord delivery now stores per-message send state, but exactly-once
 delivery is impossible to guarantee without a Discord-side idempotency key.
 An ambiguous pending message must be manually reconciled. No automatic resend

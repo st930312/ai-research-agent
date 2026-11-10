@@ -25,7 +25,12 @@ def article_text(row, index):
         raise ValueError("Discord article has no real body; refusing to format")
     body = re.sub(r"@(everyone|here)", lambda m: "@\u200b" + m.group(1), body, flags=re.I)
     # Preserve meaningful paragraphs; do not reproduce malformed markdown headers.
-    body = re.sub(r"(?m)^\s*#{1,6}\s+", "", body)
+    if row.get("category") == "finance":
+        # Preserve AI-authored section headings for the industry roundup.
+        # Keep these subordinate to the article's ## title.
+        body = re.sub(r"(?m)^\\s*#{1,6}\\s+", "### ", body)
+    else:
+        body = re.sub(r"(?m)^\\s*#{1,6}\\s+", "", body)
     url = row.get("url") or ""
     if not url.startswith(("https://", "http://")):
         raise ValueError("Invalid article link")

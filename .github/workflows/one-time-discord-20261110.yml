@@ -1,3 +1,4 @@
+# Retry after removing strict numeric fact guard; triggered by this one workflow-file change.
 name: One-time Discord Digest - 2026-11-10
 on:
   push:

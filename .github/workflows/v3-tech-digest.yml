@@ -48,6 +48,6 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           # Scheduled runs publish automatically. Manual runs remain opt-in.
-          ENABLE_REAL_AI: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.live_ai) && 'true' || 'false' }}
-          SEND_DISCORD: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.live_ai && inputs.send_discord) && 'true' || 'false' }}
+          ENABLE_REAL_AI: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.live_ai)) && 'true' || 'false' }}
+          SEND_DISCORD: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.live_ai && inputs.send_discord)) && 'true' || 'false' }}
         run: python -u -m src.editorial_digest

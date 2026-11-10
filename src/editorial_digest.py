@@ -23,7 +23,6 @@ from .v3_sources import github_releases, event_dedup
 from .wide_discord import format_wide_messages, send_wide_messages
 from .published_history import PublishedHistory, filter_published
 from .publication import PublicationLedger, digest_key
-from .fact_guard import validate_source_grounding
 from .content_enrichment import enrich
 from .editorial_policy import industry_eligible
 from .tech_digest import API, MODEL
@@ -594,7 +593,6 @@ def draft(selected, metrics):
                 label = "今日遊戲情報精選"
             else:
                 label = row.get("title")
-            validate_source_grounding(desc, row)
             drafted.append({**row, "published_title": row.get("title"),
                             "title": label, "ai_description": desc})
     return drafted

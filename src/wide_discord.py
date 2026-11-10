@@ -133,7 +133,7 @@ def format_wide_messages(articles, categories, issue_date=None):
         raise ValueError("Discord message exceeds 2000 characters")
     return messages
 
-def send_wide_messages(messages):
+def send_wide_messages(messages, ledger=None):
     url = os.getenv("DISCORD_WEBHOOK_URL") or ""
     parsed = urlsplit(url)
     if (parsed.scheme != "https" or parsed.hostname not in
@@ -141,6 +141,9 @@ def send_wide_messages(messages):
         or "/api/webhooks/" not in parsed.path):
         raise RuntimeError("Missing or invalid official Discord webhook")
     for index, text in enumerate(messages, 1):
+        if ledger is not None and not ledger.claim(index, text):
+            print(f"DISCORD_ALREADY_SENT={index}/{len(messages)}", flush=True)
+            continue
         data = json.dumps({
             "content": text,
             "allowed_mentions": {"parse": []},
@@ -161,5 +164,7 @@ def send_wide_messages(messages):
                     raise
                 delay = float(exc.headers.get("Retry-After", "1"))
                 time.sleep(min(5, max(1, delay)))
+        if ledger is not None:
+            ledger.sent(index)
         print(f"DISCORD_MESSAGE_SENT={index}/{len(messages)}", flush=True)
         time.sleep(0.5)

@@ -5,6 +5,7 @@ Only manual AI runs. No database, paid fallback, scheduled job, or daily report 
 from __future__ import annotations
 
 import json
+import uuid
 import os
 import re
 import sys
@@ -21,6 +22,8 @@ from .rss_source import rss_discover
 from .v3_sources import github_releases, event_dedup
 from .wide_discord import format_wide_messages, send_wide_messages
 from .published_history import PublishedHistory, filter_published
+from .publication import PublicationLedger, digest_key
+from .fact_guard import validate_source_grounding
 from .content_enrichment import enrich
 from .editorial_policy import industry_eligible
 from .tech_digest import API, MODEL
@@ -591,6 +594,7 @@ def draft(selected, metrics):
                 label = "今日遊戲情報精選"
             else:
                 label = row.get("title")
+            validate_source_grounding(desc, row)
             drafted.append({**row, "published_title": row.get("title"),
                             "title": label, "ai_description": desc})
     return drafted
@@ -692,6 +696,7 @@ def preview(embeds):
 
 def main():
     metrics = {"calls": 0, "latencies": []}
+    run_id = os.getenv("GITHUB_RUN_ID") or str(uuid.uuid4())
     candidates, counts = collect_candidates()
     print(f"COLLECTED={len(candidates)} SOURCE_COUNTS={counts}", flush=True)
     database = None
@@ -699,6 +704,7 @@ def main():
         database = PublishedHistory()
         database.setup_and_probe()
         history = database.recent()
+        database.record_run(run_id, "running", {"candidates": len(candidates)})
         # Track fresh stable releases of repositories already recommended.
         # A substantial new version can be news even during the repo cooldown.
         recent_repos = list(dict.fromkeys(
@@ -740,7 +746,11 @@ def main():
     if os.getenv("SEND_DISCORD") == "true":
         if database is None:
             raise RuntimeError("DATABASE_URL missing: cannot track published news")
-        send_wide_messages(messages)
+        ledger = PublicationLedger(database, digest_key(messages))
+        ledger.reserve_articles(articles)
+        send_wide_messages(messages, ledger=ledger)
+        if not ledger.all_sent(len(messages)):
+            raise RuntimeError("PUBLICATION_INCOMPLETE: not recording history")
         # Store every independently sourced roundup item, not just its
         # display card; otherwise next digest would re-recommend side stories.
         history_rows = []
@@ -752,17 +762,34 @@ def main():
             for extra in article.get("roundup_sources", []):
                 history_rows.append(extra)
         database.mark_sent(history_rows)
+        ledger.complete_articles()
         print(f"HISTORY_RECORDED={len(history_rows)}", flush=True)
+        database.record_run(run_id, "published", {
+            **metrics, "source_counts": counts, "collected": len(candidates),
+            "drafted": len(articles), "discord_messages": len(messages),
+            "history_records": len(history_rows),
+        })
         print("DISCORD_SENT=true", flush=True)
     else:
+        if database is not None:
+            database.record_run(run_id, "preview", {
+                **metrics, "source_counts": counts, "collected": len(candidates),
+                "drafted": len(articles), "discord_messages": len(messages),
+            })
         print("DISCORD_SENT=false (preview)", flush=True)
 
 if __name__ == "__main__":
     try:
         main()
-    except urllib.error.HTTPError as exc:
-        print(f"API_ERROR HTTP_{exc.code}; no automatic retry", file=sys.stderr)
-        raise SystemExit(1)
     except Exception as exc:
         print(f"ERROR {type(exc).__name__}: {exc}", file=sys.stderr)
+        # Best effort: never hide the original exception if the DB is down.
+        if os.getenv("DATABASE_URL"):
+            try:
+                PublishedHistory().record_run(
+                    os.getenv("GITHUB_RUN_ID") or "local-failed-" + str(uuid.uuid4()),
+                    "failed", {"error_type": type(exc).__name__},
+                )
+            except Exception as logging_error:
+                print(f"RUN_METRICS_ERROR={type(logging_error).__name__}", file=sys.stderr)
         raise SystemExit(1)

@@ -20,6 +20,29 @@ CREATE TABLE IF NOT EXISTS published_events (
  repo TEXT,
  published_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE TABLE IF NOT EXISTS publication_messages (
+ digest_key TEXT NOT NULL,
+ message_index INTEGER NOT NULL,
+ body_sha256 TEXT NOT NULL,
+ status TEXT NOT NULL CHECK (status IN ('pending','sent')),
+ discord_message_id TEXT,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ sent_at TIMESTAMPTZ,
+ PRIMARY KEY (digest_key, message_index)
+);
+CREATE TABLE IF NOT EXISTS publication_events (
+ event_key TEXT PRIMARY KEY,
+ digest_key TEXT NOT NULL,
+ status TEXT NOT NULL CHECK (status IN ('reserved','sent')),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS pipeline_runs (
+ run_id TEXT PRIMARY KEY,
+ started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ completed_at TIMESTAMPTZ,
+ status TEXT NOT NULL,
+ metrics JSONB NOT NULL DEFAULT '{}'::jsonb
+);
 CREATE INDEX IF NOT EXISTS published_events_time ON published_events (published_at DESC);
 CREATE INDEX IF NOT EXISTS published_events_repo ON published_events (repo, published_at DESC);
 ALTER TABLE published_events ADD COLUMN IF NOT EXISTS event_summary TEXT NOT NULL DEFAULT '';
@@ -134,6 +157,19 @@ class PublishedHistory:
                 )
                 columns = [col.name for col in cur.description]
                 return [dict(zip(columns, values)) for values in cur.fetchall()]
+
+    def record_run(self, run_id, status, metrics):
+        from psycopg.types.json import Jsonb
+        with self.connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO pipeline_runs (run_id,status,metrics,completed_at)
+                       VALUES (%s,%s,%s, CASE WHEN %s = 'running' THEN NULL ELSE NOW() END)
+                       ON CONFLICT (run_id) DO UPDATE SET
+                         status=EXCLUDED.status, metrics=EXCLUDED.metrics,
+                         completed_at=EXCLUDED.completed_at""",
+                    (run_id, status, Jsonb(metrics), status)
+                )
 
     def mark_sent(self, articles):
         if not articles:

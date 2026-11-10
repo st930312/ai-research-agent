@@ -544,7 +544,15 @@ def draft(selected, metrics):
             "importance=3 寫 400～500 字，2 寫 250～350 字，1 寫 200～250 字；"
             "但資訊不足時要縮短，絕不為達字數杜撰。"
             "內容說明：發生什麼、具體內容及影響、為何值得關注。"
-            "category=finance 是全球產業情報而非長篇空泛評論。逐則報導具體事件："
+            "category=finance 是多事件整合專欄，請用繁體中文寫約 700～1100 字，"
+            "依來源數量與證據充足程度調整，不能為湊字數添加未證實資訊。"
+            "務必使用 Discord 支援的 Markdown 排版：先寫 2～3 句總覽並空一行，"
+            "每一個獨立事件以「### 事件小標題」開頭，下接 2～3 段短段落，"
+            "事件之間留空行，最後可加「### 產業觀察」說明已確認的整體影響與不確定性。"
+            "不要將不同事件寫成一整段，也不要把來源列表放進 AI 內文（程式會附加原始連結）。"
+            "每個事件須能對應 primary 或 roundup_sources 中的資料，"
+            "沒有足夠來源就縮短，不得虛構事件或連結。"
+            "逐則報導具體事件："
             "先寫『何人何時做了什麼，有哪些確定數字或決策』，再寫『對全球產業供需、"
             "技術、競爭、監管或資本支出的可能意義』。每個事件與原始來源一一對照。"
             "沒有證據顯示相互關聯的事件應分段，不得強行串成共同趨勢、深度重構等口號。"
@@ -565,7 +573,7 @@ def draft(selected, metrics):
         answer = _request_ai([
             {"role": "system", "content": instruction},
             {"role": "user", "content": json.dumps(sources, ensure_ascii=False)}
-        ], max_tokens=4400, metrics=metrics)
+        ], max_tokens=5400, metrics=metrics)
         obj = _parse_json(answer)
         descriptions = {}
         for row in obj.get("articles", []):
@@ -577,7 +585,9 @@ def draft(selected, metrics):
                 continue
             description = row.get("description")
             if isinstance(description, str):
-                descriptions[ident] = description.strip()[:650]
+                source = next((item for item in batch if item["id"] == ident), None)
+                limit = 1600 if source and source.get("category") == "finance" else 650
+                descriptions[ident] = description.strip()[:limit]
         for row in batch:
             desc = descriptions.get(row["id"])
             # Missing/short text is a failed generation, not a publishable article.

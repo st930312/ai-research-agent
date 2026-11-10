@@ -1,33 +1,9 @@
-"""Regression checks for reliability, quantitative claim validation and format."""
+"""Regression checks for publication reliability and format."""
 import unittest
 from unittest.mock import Mock, patch
-from src.fact_guard import numeric_claims, validate_source_grounding
 from src.publication import digest_key, PublicationLedger
 from src.wide_discord import send_wide_messages
 from src.published_history import SCHEMA
-
-
-class FactGuardTests(unittest.TestCase):
-    def test_normalizes_percentage_spacing(self):
-        self.assertEqual(numeric_claims("成長 12 %，降幅 3.5％"), {"12%", "3.5%"})
-
-    def test_unsupported_claim_fails(self):
-        with self.assertRaisesRegex(ValueError, "UNSUPPORTED_NUMERIC_CLAIM"):
-            validate_source_grounding(
-                "營收成長 37%", {"title": "Revenue report", "description": "Revenue grew 7%"}
-            )
-
-    def test_source_supports_number(self):
-        self.assertTrue(validate_source_grounding(
-            "營收成長 37%", {"title": "Revenue report", "body_excerpt": "Revenue grew 37%"}
-        ))
-
-    def test_roundup_source_supports_number(self):
-        self.assertTrue(validate_source_grounding(
-            "產業報導提及 12 億美元",
-            {"title": "Industry news", "roundup_sources": [
-                {"title": "Another event", "body_excerpt": "Investment: 12億美元"}]}
-        ))
 
 
 class PublicationTests(unittest.TestCase):

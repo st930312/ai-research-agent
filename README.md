@@ -1,4 +1,4 @@
-# Technology Intelligence Feed V4.2 (validated-body publishing)
+# Technology Intelligence Feed V4.3 (publication safety & observability)
 
 15-story Traditional-Chinese technology, games, and Taiwan stock-market briefing. GitHub Actions + NVIDIA NIM + Discord wide-format Markdown.
 
@@ -66,7 +66,19 @@ python -m src.published_history
 python -m src.editorial_digest
 ```
 
-The Neon history table holds event-identity summaries, full drafted article summaries, key entities, event type, original/related source links, and GitHub release tags (not complete daily reports). The pipeline checks 90 days of news, filters repeated links and near-identical headlines, and cools down repeated GitHub repository recommendations. It **actively checks new formal releases of previously recommended repos**; different versions can enter the candidate pool, but the AI audit must confirm a meaningful feature, compatibility, or security change. It writes publication records only after all Discord messages successfully send. A partial Discord webhook failure can still deliver some messages without recording their state; per-message idempotency remains a future improvement. A live Discord send without `DATABASE_URL` fails closed to avoid losing publication history.
+The Neon history table holds event-identity summaries, full drafted article summaries, key entities, event type, original/related source links, and GitHub release tags (not complete daily reports). A publication ledger reserves article identities before the first Discord POST and
+tracks each message as pending/sent. An ambiguous network failure is **not
+automatically retried**; check Discord and reconcile the ledger manually before
+another delivery. This intentionally favors avoiding duplicates over automatic
+recovery. Database-backed `pipeline_runs` also stores source counts, AI
+latencies, draft counts and delivery status. A conservative numeric-claim guard
+blocks percentage and high-impact financial quantities not found in the fetched
+source excerpts; this is **not comprehensive factual verification**.
+
+The pipeline checks 90 days of news, filters repeated links and near-identical headlines, and cools down repeated GitHub repository recommendations. It **actively checks new formal releases of previously recommended repos**; different versions can enter the candidate pool, but the AI audit must confirm a meaningful feature, compatibility, or security change. It writes publication records only after all Discord messages successfully send. Partial Discord delivery now stores per-message send state, but exactly-once
+delivery is impossible to guarantee without a Discord-side idempotency key.
+An ambiguous pending message must be manually reconciled. No automatic resend
+is attempted. A live Discord send without `DATABASE_URL` fails closed to avoid losing publication history.
 
 The [V3 Manual workflow](https://github.com/st930312/ai-research-agent/actions/workflows/v3-tech-digest.yml) runs offline Python tests and checks the database if configured; manual `live_ai` and `send_discord` toggles control AI and delivery. There is no daily schedule.
 
@@ -81,7 +93,11 @@ The [V3 Manual workflow](https://github.com/st930312/ai-research-agent/actions/w
 - Cross-source matching combines cheap URL/headline filters with a dedicated NVIDIA semantic-event audit. Different wording describing one real event should become one story. The audit is probabilistic (not a guarantee against every duplicate), and malformed or incomplete model output causes the run to stop rather than sending unchecked content.
 - If source body is unavailable the post is flagged. Publisher content is used only as short reference excerpts, with links to original sources.
 - Publisher RSS feeds and provider limits can change; checks and exceptions are logged.
-- **Old workflows remain for development and testing**. Use the V3 workflow for current digests.
+- Only `v3-tech-digest.yml` (manual production), `v4-semantic-preview.yml`
+(non-publishing acceptance), and `python-ci.yml` (offline tests) are kept.
+Runtime NVIDIA model selection uses `NVIDIA_MODEL` or the default in
+`src/tech_digest.py`; the unused documentation-only models YAML was removed.
+The news selection quotas and metadata backfill policy are unchanged.
 
 ## Local tests
 

@@ -20,6 +20,42 @@ class PublicationLedger:
         self.database = database
         self.key = key
 
+    def reserve_articles(self, articles):
+        """Reserve every visible event before first webhook request.
+
+        A second run with overlapping stories must be reviewed rather than
+        generating another batch while publication history is uncertain.
+        """
+        from .published_history import event_key
+        items = [item for article in articles
+                 for item in [article, *(article.get("roundup_sources") or [])]]
+        keys = sorted({event_key(item) for item in items})
+        with self.database.connect() as conn:
+            with conn.cursor() as cur:
+                for key in keys:
+                    cur.execute(
+                        """INSERT INTO publication_events
+                           (event_key, digest_key, status)
+                           VALUES (%s, %s, 'reserved')
+                           ON CONFLICT DO NOTHING
+                           RETURNING event_key""",
+                        (key, self.key),
+                    )
+                    if cur.fetchone() is None:
+                        raise RuntimeError(
+                            "PUBLICATION_EVENT_ALREADY_RESERVED: "
+                            "check history/Discord before publishing again"
+                        )
+
+    def complete_articles(self):
+        with self.database.connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE publication_events SET status = 'sent'
+                       WHERE digest_key = %s AND status = 'reserved'""",
+                    (self.key,),
+                )
+
     def claim(self, index, body):
         fingerprint = hashlib.sha256(body.encode("utf-8")).hexdigest()
         with self.database.connect() as conn:

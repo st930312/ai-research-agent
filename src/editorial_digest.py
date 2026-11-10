@@ -747,6 +747,7 @@ def main():
         if database is None:
             raise RuntimeError("DATABASE_URL missing: cannot track published news")
         ledger = PublicationLedger(database, digest_key(messages))
+        ledger.reserve_articles(articles)
         send_wide_messages(messages, ledger=ledger)
         if not ledger.all_sent(len(messages)):
             raise RuntimeError("PUBLICATION_INCOMPLETE: not recording history")
@@ -761,6 +762,7 @@ def main():
             for extra in article.get("roundup_sources", []):
                 history_rows.append(extra)
         database.mark_sent(history_rows)
+        ledger.complete_articles()
         print(f"HISTORY_RECORDED={len(history_rows)}", flush=True)
         database.record_run(run_id, "published", {
             **metrics, "source_counts": counts, "collected": len(candidates),

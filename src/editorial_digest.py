@@ -781,9 +781,15 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except urllib.error.HTTPError as exc:
-        print(f"API_ERROR HTTP_{exc.code}; no automatic retry", file=sys.stderr)
-        raise SystemExit(1)
     except Exception as exc:
         print(f"ERROR {type(exc).__name__}: {exc}", file=sys.stderr)
+        # Best effort: never hide the original exception if the DB is down.
+        if os.getenv("DATABASE_URL"):
+            try:
+                PublishedHistory().record_run(
+                    os.getenv("GITHUB_RUN_ID") or "local-failed-" + str(uuid.uuid4()),
+                    "failed", {"error_type": type(exc).__name__},
+                )
+            except Exception as logging_error:
+                print(f"RUN_METRICS_ERROR={type(logging_error).__name__}", file=sys.stderr)
         raise SystemExit(1)

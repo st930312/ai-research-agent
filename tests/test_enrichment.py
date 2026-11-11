@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 from src.content_enrichment import readable_html, enrich, MAX_TEXT
 
 class EnrichmentTests(unittest.TestCase):
@@ -29,7 +30,9 @@ class EnrichmentTests(unittest.TestCase):
         row = {"url": "https://example.com/doc", "source": "hackernews"}
         def fetcher(url, headers=None):
             raise TimeoutError("test")
-        result = enrich(row, fetcher=fetcher)
+        with patch("src.retry_policy.time.sleep") as sleeper:
+            result = enrich(row, fetcher=fetcher)
+        self.assertEqual(sleeper.call_count, 3)
         self.assertEqual(result["body_status"], "unavailable:TimeoutError")
         self.assertEqual(result["body_excerpt"], "")
 

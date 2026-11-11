@@ -279,7 +279,7 @@ def _request_parsed_ai(messages, max_tokens, metrics, stage):
     for model_index, active_model in enumerate(models):
         for attempt in range(MAX_RETRIES + 1):
             try:
-                if model_index == 0:
+                if active_model == MODEL:
                     # Keep the legacy call signature for existing test stubs.
                     answer = _request_ai(messages, max_tokens, metrics)
                 else:

@@ -99,11 +99,38 @@ class EditorialDigestTests(unittest.TestCase):
         metrics = {"calls": 0, "latencies": []}
         with patch("src.editorial_digest._request_ai",
                    return_value="not JSON") as ai, \
-             patch("src.editorial_digest.time.sleep") as sleeper:
+             patch("src.editorial_digest.time.sleep") as sleeper, \
+             patch.object(e, "FALLBACK_MODEL", e.MODEL):
             with self.assertRaisesRegex(ValueError, "No complete JSON"):
                 e._request_parsed_ai([], 100, metrics, "shortlist")
         self.assertEqual(ai.call_count, 4)
         self.assertEqual(sleeper.call_count, 3)
+
+    def test_invalid_json_falls_back_to_glm(self):
+        metrics = {"calls": 0, "latencies": []}
+        model_calls = []
+        def ai(messages, max_tokens, metrics, model=None):
+            model_calls.append(model or e.MODEL)
+            if model is None:
+                return "garbled"
+            return '{"selected":[{"id":1,"category":"ai","importance":3}]}'
+        with patch.object(e, "MODEL", "deepseek-ai/deepseek-v4.1-flash"), \
+             patch.object(e, "FALLBACK_MODEL", "z-ai/glm-5.3-flash"), \
+             patch.object(e, "_request_ai", side_effect=ai), \
+             patch("src.editorial_digest.time.sleep") as sleeper:
+            result = e._request_parsed_ai([], 100, metrics, "shortlist")
+        self.assertEqual(result["selected"][0]["id"], 1)
+        self.assertEqual(model_calls[:4], ["deepseek-ai/deepseek-v4.1-flash"] * 4)
+        self.assertEqual(model_calls[4], "z-ai/glm-5.3-flash")
+        self.assertEqual(sleeper.call_count, 3)
+
+    def test_fallback_also_invalid_stops_before_publication(self):
+        metrics = {"calls": 0, "latencies": []}
+        with patch.object(e, "_request_ai", return_value="garbage") as ai, \
+             patch("src.editorial_digest.time.sleep"):
+            with self.assertRaisesRegex(ValueError, "No complete JSON"):
+                e._request_parsed_ai([], 100, metrics, "event_audit")
+        self.assertEqual(ai.call_count, 8)
 
     def test_ai_diagnostic_redacts_known_credentials(self):
         import io

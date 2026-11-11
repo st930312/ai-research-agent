@@ -37,23 +37,24 @@ Headline/event near-duplicate suppression, Neon publication-history filtering an
 
 ## NVIDIA model fallback
 
-The daily editorial pipeline defaults to `deepseek-ai/deepseek-v4.1-flash` and uses
-`z-ai/glm-5.3-flash` as fallback through the same `NVIDIA_API_KEY`.
-Override via `NVIDIA_MODEL` and `NVIDIA_FALLBACK_MODEL` environment variables.
-For shortlist, semantic event audit, and draft-batch JSON, malformed or empty
-responses are retried up to three times on the primary model, then retried on
-the alternate model. Missing draft bodies are retried selectively and can be
-re-drafted on the backup without rewriting completed articles. All outputs
-remain subject to source checks and fail-closed Discord publication safeguards.
-The API trial endpoints have provider-side rate limits and usage terms; access
-and stability are not guaranteed. **Live test on 2026-11-11:** NVIDIA-hosted
-DeepSeek V4.1 Flash and GLM-5.3 Flash both timed out before sending any response
-bytes from GitHub Actions, even on tiny synthetic prompts. The fallbacks are
-implemented and unit-tested, but provider availability is **not verified**.
-For no-response timeouts, the client uses a 40-second timeout by default,
-marks a model unhealthy for the current process and immediately moves to
-the next configured model rather than repeatedly blocking. Other rate-limit
-retries and fail-closed Discord checks remain enabled.
+The daily editorial pipeline uses `nvidia/nemotron-3-ultra-550b-a55b` as its
+**primary** model and `nvidia/nemotron-3.5-super-vl-120b-a12b` as its **backup**,
+both using the same `NVIDIA_API_KEY`. Override with `NVIDIA_MODEL` and
+`NVIDIA_FALLBACK_MODEL` environment variables.
+
+The primary previously generated valid daily digests but also returned garbled
+JSON during later event audits. Invalid JSON is retried up to three times
+(20/40/60 seconds plus jitter) before switching to the backup. A model that
+times out before producing a response is marked unhealthy for the current run;
+the next AI operation uses the available backup. Missing draft bodies receive
+targeted retries and, if necessary, the backup model. All published articles
+must still pass completeness and source checks; otherwise Discord sending is
+blocked. The service has provider-side quotas and free evaluation conditions.
+
+Live evidence: Nemotron 3.5 Super VL 120B returned valid `{"ok":true}` JSON
+twice using the NVIDIA endpoint (about 25 seconds per request). This confirms
+basic endpoint access, not the quality or reliability of a complete news run.
+Earlier DeepSeek V4.1 Flash and GLM-5.3 Flash endpoint tests timed out.
 
 ## NVIDIA AI response diagnostics
 

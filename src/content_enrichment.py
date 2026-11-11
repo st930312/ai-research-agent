@@ -11,6 +11,7 @@ import socket
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
+from .retry_policy import with_backoff
 
 MAX_BYTES = 250_000
 MAX_TEXT = 5_000
@@ -99,7 +100,7 @@ def enrich(item, fetcher=get_public_content):
             auth = {}
             if os.getenv("GH_TOKEN"):
                 auth["Authorization"] = "Bearer " + os.environ["GH_TOKEN"]
-            content, ctype = fetcher(api_url, {"Accept": "application/vnd.github.raw+json", **auth})
+            content, ctype = with_backoff(lambda: fetcher(api_url, {"Accept": "application/vnd.github.raw+json", **auth}), label="github_readme")
             if "json" in ctype and content.lstrip().startswith("{"):
                 doc = json.loads(content)
                 if doc.get("encoding") != "base64" or not doc.get("content"):
@@ -111,7 +112,7 @@ def enrich(item, fetcher=get_public_content):
             item["body_excerpt"] = content[:MAX_TEXT]
             item["body_kind"] = "github_readme"
         else:
-            content, ctype = fetcher(url)
+            content, ctype = with_backoff(lambda: fetcher(url), label="article")
             item["body_excerpt"] = readable_html(content) if "html" in ctype else content[:MAX_TEXT].strip()
             if not item["body_excerpt"]:
                 raise ValueError("No readable body")

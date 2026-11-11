@@ -84,7 +84,7 @@ class EditorialDigestTests(unittest.TestCase):
                 e.post_discord([])
 
     def test_budget_limit(self):
-        metrics = {"calls": 7, "latencies": []}
+        metrics = {"calls": e.MAX_API_CALLS, "latencies": []}
         with self.assertRaisesRegex(RuntimeError, "budget"):
             e._request_ai([], 100, metrics)
 

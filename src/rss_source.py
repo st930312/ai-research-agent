@@ -3,6 +3,7 @@ import html
 import re
 import urllib.request
 import xml.etree.ElementTree as ET
+from .retry_policy import with_backoff
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
@@ -97,7 +98,7 @@ def rss_discover(limit=5, fetcher=fetch_rss):
     for category, feeds in FEEDS.items():
         for label, url in feeds:
             try:
-                rows = parse_feed(fetcher(url), label, category,
+                rows = parse_feed(with_backoff(lambda: fetcher(url), label=label), label, category,
                                   max(limit * 4, 20) if category in ("gaming", "tw_stock") else limit)
                 if category == "gaming":
                     # Let AI evaluate every time-ordered gaming story without

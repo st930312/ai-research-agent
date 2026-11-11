@@ -83,7 +83,7 @@ class EditorialDigestTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 e.post_discord([])
 
-    def test_malformed_shortlist_json_retries_once_with_backoff(self):
+    def test_malformed_shortlist_json_retries_with_backoff(self):
         responses = iter(["not JSON", '{"selected":[]}'])
         metrics = {"calls": 0, "latencies": []}
         with patch("src.editorial_digest._request_ai",
@@ -95,15 +95,15 @@ class EditorialDigestTests(unittest.TestCase):
         self.assertEqual(ai.call_count, 2)
         sleeper.assert_called_once()
 
-    def test_malformed_json_retry_stops_after_one_retry(self):
+    def test_malformed_json_retry_stops_after_three_retries(self):
         metrics = {"calls": 0, "latencies": []}
         with patch("src.editorial_digest._request_ai",
                    return_value="not JSON") as ai, \
              patch("src.editorial_digest.time.sleep") as sleeper:
             with self.assertRaisesRegex(ValueError, "No complete JSON"):
                 e._request_parsed_ai([], 100, metrics, "shortlist")
-        self.assertEqual(ai.call_count, 2)
-        self.assertEqual(sleeper.call_count, 1)
+        self.assertEqual(ai.call_count, 4)
+        self.assertEqual(sleeper.call_count, 3)
 
     def test_no_per_run_ai_call_limit(self):
         # Application must not block requests based on prior call count.

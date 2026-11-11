@@ -9,7 +9,7 @@ on:
       live_ai:
         type: boolean
         default: false
-        description: "Run real NVIDIA editing (up to 7 API calls)"
+        description: "Run NVIDIA editing (max 9 calls including up to 2 targeted retries)"
       send_discord:
         type: boolean
         default: false

@@ -14,7 +14,8 @@ class DraftIntegrityTests(unittest.TestCase):
 
     def test_partial_model_batch_fails_closed(self):
         rows=[self.row(1),self.row(2,"finance")]
-        with patch("src.editorial_digest.enrich",side_effect=lambda x:{**x,"body_status":"ok"}),\
+        with patch("src.editorial_digest.time.sleep"), \
+             patch("src.editorial_digest.enrich",side_effect=lambda x:{**x,"body_status":"ok"}),\
              patch("src.editorial_digest._request_ai",return_value=
                    '{"articles":[{"id":1,"description":"新聞摘要內容較短"}]}'):
             with self.assertRaisesRegex(RuntimeError,"INCOMPLETE_AI_BODY"):
@@ -29,6 +30,43 @@ class DraftIntegrityTests(unittest.TestCase):
                  "articles":[{"id":1,"description":long}]},ensure_ascii=False)):
             with self.assertRaisesRegex(RuntimeError,"INCOMPLETE_AI_BODY"):
                 draft(rows,{"calls":0,"latencies":[]})
+
+
+    def test_only_missing_article_retried_with_backoff(self):
+        import json
+        rows = [self.row(1, "ai"), self.row(2, "finance")]
+        body = "真實來源事件與背景。" * 35
+        requests = []
+        def fake_ai(messages, max_tokens, metrics):
+            requests.append(json.loads(messages[1]["content"]))
+            if len(requests) == 1:
+                return json.dumps({"articles": [{"id": 2, "description": body}]},
+                                  ensure_ascii=False)
+            return json.dumps({"articles": [{"id": 1, "description": body}]},
+                              ensure_ascii=False)
+        with patch("src.editorial_digest.time.sleep") as sleeper, \
+             patch("src.editorial_digest.enrich",
+                   side_effect=lambda x: {**x, "body_status": "ok"}), \
+             patch("src.editorial_digest._request_ai", side_effect=fake_ai):
+            result = draft(rows, {"calls": 0, "latencies": []})
+        self.assertEqual([row["id"] for row in result], [1, 2])
+        self.assertEqual([x["id"] for x in requests[1]], [1])
+        sleeper.assert_called_once()
+
+    def test_two_retries_then_fail_closed(self):
+        import json
+        calls = []
+        def incomplete(messages, max_tokens, metrics):
+            calls.append(1)
+            return json.dumps({"articles": []})
+        with patch("src.editorial_digest.time.sleep") as sleeper, \
+             patch("src.editorial_digest.enrich",
+                   side_effect=lambda x: {**x, "body_status": "ok"}), \
+             patch("src.editorial_digest._request_ai", side_effect=incomplete):
+            with self.assertRaisesRegex(RuntimeError, "INCOMPLETE_AI_BODY"):
+                draft([self.row(1, "finance")], {"calls": 0, "latencies": []})
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(sleeper.call_count, 2)
 
     def test_renderer_rejects_missing_body(self):
         with self.assertRaisesRegex(ValueError,"no real body"):

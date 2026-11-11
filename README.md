@@ -46,7 +46,14 @@ the alternate model. Missing draft bodies are retried selectively and can be
 re-drafted on the backup without rewriting completed articles. All outputs
 remain subject to source checks and fail-closed Discord publication safeguards.
 The API trial endpoints have provider-side rate limits and usage terms; access
-and stability are not guaranteed.
+and stability are not guaranteed. **Live test on 2026-11-11:** NVIDIA-hosted
+DeepSeek V4.1 Flash and GLM-5.3 Flash both timed out before sending any response
+bytes from GitHub Actions, even on tiny synthetic prompts. The fallbacks are
+implemented and unit-tested, but provider availability is **not verified**.
+For no-response timeouts, the client uses a 40-second timeout by default,
+marks a model unhealthy for the current process and immediately moves to
+the next configured model rather than repeatedly blocking. Other rate-limit
+retries and fail-closed Discord checks remain enabled.
 
 ## NVIDIA AI response diagnostics
 

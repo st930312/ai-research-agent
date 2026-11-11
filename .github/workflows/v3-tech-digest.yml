@@ -9,7 +9,7 @@ on:
       live_ai:
         type: boolean
         default: false
-        description: "Run NVIDIA editing (max 9 calls including up to 2 targeted retries)"
+        description: "Run NVIDIA editing (bounded retries; no per-run request cap)"
       send_discord:
         type: boolean
         default: false

@@ -734,7 +734,7 @@ def draft(selected, metrics):
     # Max three extra AI calls, with long backoff and jitter.
     # A failed retry never causes a blank body to be published.
     for attempt in range(1, MAX_RETRIES + 1):
-        if not pending:
+        if not pending or MODEL in _UNHEALTHY_MODELS:
             break
         delay = ai_content_delay(attempt)
         print(f"DRAFT_RETRY attempt={attempt}/{MAX_RETRIES} missing={len(pending)} "

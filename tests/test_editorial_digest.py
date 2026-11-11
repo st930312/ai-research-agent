@@ -105,10 +105,24 @@ class EditorialDigestTests(unittest.TestCase):
         self.assertEqual(ai.call_count, 2)
         self.assertEqual(sleeper.call_count, 1)
 
-    def test_budget_limit(self):
-        metrics = {"calls": e.MAX_API_CALLS, "latencies": []}
-        with self.assertRaisesRegex(RuntimeError, "budget"):
-            e._request_ai([], 100, metrics)
+    def test_no_per_run_ai_call_limit(self):
+        # A large previous call count must not block a valid new request.
+        # Provider-side quotas and bounded per-operation retries still apply.
+        from unittest.mock import MagicMock
+        import json
+        metrics = {"calls": 100, "latencies": []}
+        response = MagicMock()
+        response.__enter__.return_value.__iter__.return_value = iter([
+            b'data: {"choices":[{"delta":{"content":"{\"ok\":true}"}}]}\\n',
+            b'data: [DONE]\\n',
+        ])
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}), \\
+             patch("src.editorial_digest.urllib.request.urlopen",
+                   return_value=response):
+            answer = e._request_ai(
+                [{"role": "user", "content": "test"}], 100, metrics)
+        self.assertIn("ok", answer)
+        self.assertEqual(metrics["calls"], 101)
 
 if __name__ == "__main__":
     unittest.main()

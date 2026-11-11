@@ -60,7 +60,6 @@ def is_recent(row, days=7):
 MAX_CANDIDATES = 150
 MAX_SELECT = 20
 DEFAULT_SELECT = 15
-MAX_API_CALLS = 9
 MAX_ARTICLE_EXCERPT = 2400
 MAX_DISCORD_EMBEDS = 10
 MAX_DISCORD_TOTAL_CHARS = 5600
@@ -140,8 +139,6 @@ def _parse_json(text):
     raise ValueError("No complete JSON object in model response")
 
 def _request_ai(messages, max_tokens, metrics):
-    if metrics["calls"] >= MAX_API_CALLS:
-        raise RuntimeError("AI request budget reached; stopping without retries")
     key = os.getenv("NVIDIA_API_KEY")
     if not key:
         raise RuntimeError("Missing NVIDIA_API_KEY")
@@ -186,7 +183,7 @@ def _request_ai(messages, max_tokens, metrics):
     return result
 
 def _request_parsed_ai(messages, max_tokens, metrics, stage):
-    """One delayed retry for malformed JSON, with a strict global AI budget.
+    """One delayed retry for malformed JSON; no per-run request cap.
 
     A malformed model result is not a source crawling error; only the failed
     AI operation is retried. Never treat incomplete responses as valid.
@@ -195,7 +192,7 @@ def _request_parsed_ai(messages, max_tokens, metrics, stage):
         try:
             return _parse_json(_request_ai(messages, max_tokens, metrics))
         except ValueError as exc:
-            if attempt or metrics["calls"] >= MAX_API_CALLS:
+            if attempt:
                 raise
             import random
             delay = min(30, 5 + random.uniform(0, 3))
@@ -537,7 +534,7 @@ def draft(selected, metrics):
         enriched.append({**primary, "roundup_sources": extras})
     # Place the longer finance roundup in the first drafting group, not the
     # final one; keep normal drafting at <=5 calls (2 AI selection/audit calls).
-    # The budget reserves 2 additional calls for missing article bodies.
+    # Retry counts are bounded per failed operation, not per execution.
     enriched = sorted(enriched, key=lambda row: row.get("category") != "finance")
     batches = [enriched[i:i + 3] for i in range(0, len(enriched), 3)]
     drafted = []
@@ -625,15 +622,13 @@ def draft(selected, metrics):
     for attempt in (1, 2):
         if not pending:
             break
-        if metrics["calls"] >= MAX_API_CALLS:
-            break
         import random
         delay = min(30, (5 * 2 ** (attempt - 1)) + random.uniform(0, 3))
         print(f"DRAFT_RETRY attempt={attempt}/2 missing={len(pending)} "
               f"sleep_s={delay:.1f}", flush=True)
         time.sleep(delay)
         # Retry each missing article with its own source material. When more
-        # than three articles failed, group the request to stay in budget.
+        # than three articles failed, group them in one bounded retry call.
         sources = [source for _row, source in pending]
         retry_instruction = (
             "你是繁體中文科技新聞編輯。以下是上一次 AI 遺漏或撰寫過短的新聞。"

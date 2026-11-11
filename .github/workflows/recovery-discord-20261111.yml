@@ -1,3 +1,4 @@
+# Second one-time attempt after adding bounded retry for malformed model JSON.
 name: Recovery Discord Digest - 2026-11-11
 on:
   push:

@@ -140,6 +140,23 @@ def _parse_json(text):
 
 from .retry_policy import MAX_RETRIES, ai_content_delay, with_backoff
 
+def _log_ai_diagnostic(kind, payload, *, call_id, attempt):
+    """Log exact response data, never request headers or API credentials.
+
+    GitHub Actions logs may be public; redact configured credentials if the
+    provider inadvertently echoes any of them in response text.
+    """
+    safe = str(payload)
+    for name in ("NVIDIA_API_KEY", "DATABASE_URL", "DISCORD_WEBHOOK_URL", "GH_TOKEN",
+                 "GITHUB_TOKEN"):
+        secret = os.environ.get(name, "")
+        if secret:
+            safe = safe.replace(secret, "[REDACTED]")
+    print("AI_DIAGNOSTIC=" + json.dumps({
+        "kind": kind, "call": call_id, "attempt": attempt, "data": safe,
+    }, ensure_ascii=False), flush=True)
+
+
 def _request_ai(messages, max_tokens, metrics):
     key = os.getenv("NVIDIA_API_KEY")
     if not key:
@@ -157,14 +174,21 @@ def _request_ai(messages, max_tokens, metrics):
         method="POST",
     )
     metrics["calls"] += 1
+    call_id = metrics["calls"]
     started = time.monotonic()
     first = None
     fragments = []
+    raw_lines = []
+    stream_attempt = 0
+
     def receive_stream():
         nonlocal first
         with urllib.request.urlopen(req, timeout=180) as response:
             for raw in response:
+                # Preserve *every* raw SSE line for diagnostics, including
+                # unknown provider fields, finish_reason and token usage.
                 line = raw.decode("utf-8", errors="replace").strip()
+                raw_lines.append(line)
                 if not line.startswith("data: ") or line == "data: [DONE]":
                     continue
                 try:
@@ -176,15 +200,41 @@ def _request_ai(messages, max_tokens, metrics):
                             first = time.monotonic() - started
                         fragments.append(content)
                 except (IndexError, KeyError, TypeError, ValueError):
+                    # Still retain the raw packet for diagnosis.
                     continue
 
-    # A transport failure is retried only if it is transient; discard any
-    # partial fragments from an interrupted stream before the next attempt.
     def fetch_stream():
-        nonlocal first
+        nonlocal first, stream_attempt
+        stream_attempt += 1
         fragments.clear()
+        raw_lines.clear()
         first = None
-        receive_stream()
+        try:
+            receive_stream()
+        except urllib.error.HTTPError as exc:
+            # The HTTP error body is not part of the SSE stream, so retain
+            # it separately. Do not log request headers or Authorization.
+            try:
+                body = exc.read().decode("utf-8", errors="replace")
+            except Exception:
+                body = "<unreadable response body>"
+            _log_ai_diagnostic("http_error", {
+                "status": exc.code,
+                "body": body,
+            }, call_id=call_id, attempt=stream_attempt)
+            raise
+        except Exception as exc:
+            _log_ai_diagnostic("stream_error", {
+                "error_type": type(exc).__name__,
+                "message": str(exc),
+                "raw_sse": "\n".join(raw_lines),
+            }, call_id=call_id, attempt=stream_attempt)
+            raise
+        finally:
+            # Log all original response lines even when a model response
+            # cannot be decoded or later fails JSON validation.
+            _log_ai_diagnostic("raw_sse", "\n".join(raw_lines),
+                               call_id=call_id, attempt=stream_attempt)
 
     with_backoff(fetch_stream, retries=MAX_RETRIES, label="nvidia_api")
     metrics["latencies"].append({
@@ -192,6 +242,8 @@ def _request_ai(messages, max_tokens, metrics):
         "total": round(time.monotonic() - started, 2)
     })
     result = "".join(fragments).strip()
+    _log_ai_diagnostic("extracted_content", result,
+                       call_id=call_id, attempt=stream_attempt)
     if not result:
         raise RuntimeError("Empty AI response")
     return result

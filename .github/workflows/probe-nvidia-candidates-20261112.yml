@@ -15,7 +15,7 @@ jobs:
       matrix:
         model:
           - nvidia/nemotron-3.5-super-vl-120b-a12b
-          - google/gemma-4-31b-it
+          - stepfun-ai/step-5-preview
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

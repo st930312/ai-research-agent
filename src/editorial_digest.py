@@ -185,6 +185,25 @@ def _request_ai(messages, max_tokens, metrics):
         raise RuntimeError("Empty AI response")
     return result
 
+def _request_parsed_ai(messages, max_tokens, metrics, stage):
+    """One delayed retry for malformed JSON, with a strict global AI budget.
+
+    A malformed model result is not a source crawling error; only the failed
+    AI operation is retried. Never treat incomplete responses as valid.
+    """
+    for attempt in range(2):
+        try:
+            return _parse_json(_request_ai(messages, max_tokens, metrics))
+        except ValueError as exc:
+            if attempt or metrics["calls"] >= MAX_API_CALLS:
+                raise
+            import random
+            delay = min(30, 5 + random.uniform(0, 3))
+            print(f"AI_JSON_RETRY stage={stage} attempt=1/1 "
+                  f"sleep_s={delay:.1f} reason={type(exc).__name__}", flush=True)
+            time.sleep(delay)
+
+
 def shortlist(candidates, metrics, target=DEFAULT_SELECT, oversample=False):
     target = min(MAX_SELECT, max(10, target))
     records = [{
@@ -226,11 +245,10 @@ def shortlist(candidates, metrics, target=DEFAULT_SELECT, oversample=False):
         "至少嘗試保留 github 真正有價值的候選；不要推薦同一事件的重複報導。"
         "特別警惕同一事件多家媒體不同標題的重複報導；選題池須涵蓋多樣事件，避免單一公司事件霸佔同分類。"
     )
-    answer = _request_ai([
+    obj = _request_parsed_ai([
         {"role": "system", "content": prompt},
         {"role": "user", "content": json.dumps(records, ensure_ascii=False)}
-    ], max_tokens=1800, metrics=metrics)
-    obj = _parse_json(answer)
+    ], max_tokens=1800, metrics=metrics, stage="shortlist")
     lookup = {row["id"]: row for row in candidates}
     quota = Counter()
     chosen = []
@@ -395,12 +413,11 @@ def audit_events(selected, history, metrics):
         "每個 group 的 summary 必須精確描述『發生什麼事』，包含可確認的事件行動，不得泛稱科技發展。"
 
     )
-    answer = _request_ai([
+    result = _request_parsed_ai([
         {"role": "system", "content": instruction},
         {"role": "user", "content": json.dumps(
             {"candidates": records, "history": previous}, ensure_ascii=False)},
-    ], max_tokens=3600, metrics=metrics)
-    result = _parse_json(answer)
+    ], max_tokens=3600, metrics=metrics, stage="event_audit")
     expected = {row["id"] for row in selected}
     groups = result.get("groups")
     duplicates = result.get("historical_duplicates")

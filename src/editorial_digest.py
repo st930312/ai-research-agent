@@ -27,9 +27,10 @@ from .content_enrichment import enrich
 from .editorial_policy import industry_eligible
 from .tech_digest import API
 
-# Trial endpoints verified on NVIDIA NIM; both share NVIDIA_API_KEY.
-MODEL = os.getenv("NVIDIA_MODEL", "deepseek-ai/deepseek-v4.1-flash")
-FALLBACK_MODEL = os.getenv("NVIDIA_FALLBACK_MODEL", "z-ai/glm-5.3-flash")
+# Primary originally produced valid digests but later garbled JSON; fallback
+# 120B has passed two independent NVIDIA endpoint JSON smoke checks.
+MODEL = os.getenv("NVIDIA_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
+FALLBACK_MODEL = os.getenv("NVIDIA_FALLBACK_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b")
 _UNHEALTHY_MODELS = set()
 
 CATEGORIES = {
@@ -269,7 +270,7 @@ def _request_ai(messages, max_tokens, metrics, model=None):
     return result
 
 def _request_parsed_ai(messages, max_tokens, metrics, stage):
-    """Validate JSON, then fall back to GLM after bounded DeepSeek retries.
+    """Validate JSON, then switch from the primary to the backup model if needed.
 
     No model response bypasses the existing event or summary validation.
     A 401/403 configuration error is not a reason to invoke a second model.

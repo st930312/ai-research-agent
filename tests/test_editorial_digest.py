@@ -105,6 +105,45 @@ class EditorialDigestTests(unittest.TestCase):
         self.assertEqual(ai.call_count, 4)
         self.assertEqual(sleeper.call_count, 3)
 
+    def test_ai_diagnostic_redacts_known_credentials(self):
+        import io
+        from contextlib import redirect_stdout
+        secrets = {"NVIDIA_API_KEY": "sensitive-nvidia-key",
+                   "DISCORD_WEBHOOK_URL": "https://discord.com/api/webhooks/secret",
+                   "DATABASE_URL": "postgresql://secret",
+                   "GH_TOKEN": "github-secret"}
+        data = "sensitive-nvidia-key postgresql://secret github-secret https://discord.com/api/webhooks/secret"
+        output = io.StringIO()
+        with patch.dict("os.environ", secrets), redirect_stdout(output):
+            e._log_ai_diagnostic("raw_sse", data, call_id=1, attempt=1)
+        logged = output.getvalue()
+        for secret in secrets.values():
+            self.assertNotIn(secret, logged)
+        self.assertIn("[REDACTED]", logged)
+        self.assertIn("raw_sse", logged)
+
+    def test_ai_diagnostic_keeps_unparseable_provider_stream(self):
+        from unittest.mock import MagicMock
+        import io
+        from contextlib import redirect_stdout
+        metrics = {"calls": 0, "latencies": []}
+        response = MagicMock()
+        response.__enter__.return_value.__iter__.return_value = iter([
+            b'data: {"choices":[{"delta":{"content":"not json"}}]}\n',
+            b'data: {"choices":[{"finish_reason":"length"}]}\n',
+            b'data: [DONE]\n',
+        ])
+        output = io.StringIO()
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}), \
+             patch("src.editorial_digest.urllib.request.urlopen",
+                   return_value=response), redirect_stdout(output):
+            result = e._request_ai([], 100, metrics)
+        self.assertEqual(result, "not json")
+        self.assertIn("finish_reason", output.getvalue())
+        self.assertIn("not json", output.getvalue())
+        self.assertIn("raw_sse", output.getvalue())
+        self.assertIn("extracted_content", output.getvalue())
+
     def test_no_per_run_ai_call_limit(self):
         # Application must not block requests based on prior call count.
         from unittest.mock import MagicMock

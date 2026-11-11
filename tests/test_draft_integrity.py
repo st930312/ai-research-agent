@@ -54,7 +54,7 @@ class DraftIntegrityTests(unittest.TestCase):
         self.assertEqual([x["id"] for x in requests[1]], [1])
         sleeper.assert_called_once()
 
-    def test_two_retries_then_fail_closed(self):
+    def test_three_retries_then_fail_closed(self):
         import json
         calls = []
         def incomplete(messages, max_tokens, metrics):
@@ -66,8 +66,8 @@ class DraftIntegrityTests(unittest.TestCase):
              patch("src.editorial_digest._request_ai", side_effect=incomplete):
             with self.assertRaisesRegex(RuntimeError, "INCOMPLETE_AI_BODY"):
                 draft([self.row(1, "finance")], {"calls": 0, "latencies": []})
-        self.assertEqual(len(calls), 3)
-        self.assertEqual(sleeper.call_count, 2)
+        self.assertEqual(len(calls), 4)
+        self.assertEqual(sleeper.call_count, 3)
 
     def test_renderer_rejects_missing_body(self):
         with self.assertRaisesRegex(ValueError,"no real body"):

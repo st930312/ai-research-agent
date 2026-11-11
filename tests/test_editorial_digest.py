@@ -132,6 +132,24 @@ class EditorialDigestTests(unittest.TestCase):
                 e._request_parsed_ai([], 100, metrics, "event_audit")
         self.assertEqual(ai.call_count, 8)
 
+    def test_timeout_marks_primary_unhealthy_and_falls_back(self):
+        metrics = {"calls": 0, "latencies": []}
+        seen = []
+        def fake_ai(messages, max_tokens, metrics, model=None):
+            seen.append(model or e.MODEL)
+            if model is None:
+                raise RuntimeError("AI upstream timeout")
+            return '{"selected":[]}'
+        with patch.object(e, "_UNHEALTHY_MODELS", set()), \
+             patch.object(e, "_request_ai", side_effect=fake_ai), \
+             patch("src.editorial_digest.time.sleep") as sleep:
+            self.assertEqual(e._request_parsed_ai([], 100, metrics, "shortlist"),
+                             {"selected": []})
+            self.assertEqual(e._request_parsed_ai([], 100, metrics, "audit"),
+                             {"selected": []})
+        self.assertEqual(seen, [e.MODEL, e.FALLBACK_MODEL, e.FALLBACK_MODEL])
+        sleep.assert_not_called()
+
     def test_ai_diagnostic_redacts_known_credentials(self):
         import io
         from contextlib import redirect_stdout

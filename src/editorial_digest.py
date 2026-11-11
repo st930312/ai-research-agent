@@ -30,6 +30,7 @@ from .tech_digest import API
 # Trial endpoints verified on NVIDIA NIM; both share NVIDIA_API_KEY.
 MODEL = os.getenv("NVIDIA_MODEL", "deepseek-ai/deepseek-v4.1-flash")
 FALLBACK_MODEL = os.getenv("NVIDIA_FALLBACK_MODEL", "z-ai/glm-5.3-flash")
+_UNHEALTHY_MODELS = set()
 
 CATEGORIES = {
     "ai": ("🤖 AI / LLM / Agent", 4, 0x3B82F6),
@@ -228,6 +229,15 @@ def _request_ai(messages, max_tokens, metrics, model=None):
                 "body": body,
             }, call_id=call_id, attempt=stream_attempt)
             raise
+        except TimeoutError as exc:
+            _log_ai_diagnostic("stream_error", {
+                "error_type": type(exc).__name__,
+                "message": str(exc),
+                "raw_sse": "\\n".join(raw_lines),
+            }, call_id=call_id, attempt=stream_attempt)
+            # A model that sends no data before timeout should not consume
+            # three HTTP retries and four model-level JSON retries.
+            raise RuntimeError("AI upstream timeout") from exc
         except Exception as exc:
             _log_ai_diagnostic("stream_error", {
                 "error_type": type(exc).__name__,
@@ -262,6 +272,9 @@ def _request_parsed_ai(messages, max_tokens, metrics, stage):
     models = [MODEL]
     if FALLBACK_MODEL and FALLBACK_MODEL != MODEL:
         models.append(FALLBACK_MODEL)
+    models = [model for model in models if model not in _UNHEALTHY_MODELS]
+    if not models:
+        raise RuntimeError("All NVIDIA models marked unhealthy in this run")
     last_error = None
     for model_index, active_model in enumerate(models):
         for attempt in range(MAX_RETRIES + 1):
@@ -279,11 +292,15 @@ def _request_parsed_ai(messages, max_tokens, metrics, stage):
             except (ValueError, RuntimeError, urllib.error.HTTPError,
                     urllib.error.URLError, TimeoutError) as exc:
                 # An empty model response also qualifies for model fallback.
-                if isinstance(exc, RuntimeError) and str(exc) != "Empty AI response":
+                if isinstance(exc, RuntimeError) and str(exc) not in ("Empty AI response", "AI upstream timeout"):
                     raise
                 if isinstance(exc, urllib.error.HTTPError) and exc.code in (401, 403):
                     raise
                 last_error = exc
+                if isinstance(exc, RuntimeError) and str(exc) == "AI upstream timeout":
+                    _UNHEALTHY_MODELS.add(active_model)
+                    print(f"AI_MODEL_UNHEALTHY stage={stage} model={active_model} reason=timeout", flush=True)
+                    break
                 if attempt == MAX_RETRIES:
                     break
                 delay = ai_content_delay(attempt + 1)

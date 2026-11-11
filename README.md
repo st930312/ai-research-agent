@@ -35,6 +35,19 @@ All displayed source URLs remain clickable, and each component of a roundup is s
 
 Headline/event near-duplicate suppression, Neon publication-history filtering and URL de-duplication occur before the AI selection. The editorial selection validates source IDs, categories, and fixed quotas, and supports clearly labeled metadata-based fallback when an AI shortlist is incomplete. RSS dates and HN dates are filtered to recent items. Source URL is always preserved.
 
+## NVIDIA model fallback
+
+The daily editorial pipeline defaults to `deepseek-ai/deepseek-v4.1-flash` and uses
+`z-ai/glm-5.3-flash` as fallback through the same `NVIDIA_API_KEY`.
+Override via `NVIDIA_MODEL` and `NVIDIA_FALLBACK_MODEL` environment variables.
+For shortlist, semantic event audit, and draft-batch JSON, malformed or empty
+responses are retried up to three times on the primary model, then retried on
+the alternate model. Missing draft bodies are retried selectively and can be
+re-drafted on the backup without rewriting completed articles. All outputs
+remain subject to source checks and fail-closed Discord publication safeguards.
+The API trial endpoints have provider-side rate limits and usage terms; access
+and stability are not guaranteed.
+
 ## NVIDIA AI response diagnostics
 
 Every NVIDIA call records the complete returned SSE stream and extracted content in GitHub Actions logs using `AI_DIAGNOSTIC` entries. HTTP failures include the response status and full error body; interrupted streams include the raw lines received before failure. The logger masks configured `NVIDIA_API_KEY`, `DATABASE_URL`, `DISCORD_WEBHOOK_URL`, `GH_TOKEN` and `GITHUB_TOKEN` values, and never prints request Authorization headers. Provider responses may contain public news excerpts and can be verbose; inspect and limit GitHub Actions log access and retention appropriately. A malformed JSON result continues to fail closed after bounded retries; diagnostics are not published to Discord.

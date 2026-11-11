@@ -167,12 +167,17 @@ def _request_ai(messages, max_tokens, metrics, model=None):
     if not key:
         raise RuntimeError("Missing NVIDIA_API_KEY")
     active_model = model or MODEL
+    body = {
+        "model": active_model, "messages": messages, "stream": True,
+        "max_tokens": max_tokens,
+    }
+    if active_model == "z-ai/glm-5.3-flash":
+        # GLM cannot disable reasoning; allow room for internal reasoning.
+        body["reasoning_effort"] = "low"
+        body["max_tokens"] = max(max_tokens, 8192)
     req = urllib.request.Request(
         API,
-        data=json.dumps({
-            "model": active_model, "messages": messages, "stream": True,
-            "max_tokens": max_tokens,
-        }, ensure_ascii=False).encode("utf-8"),
+        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
         headers={"Authorization": "Bearer " + key,
                  "Content-Type": "application/json",
                  "Accept": "text/event-stream"},
@@ -233,7 +238,7 @@ def _request_ai(messages, max_tokens, metrics, model=None):
             _log_ai_diagnostic("stream_error", {
                 "error_type": type(exc).__name__,
                 "message": str(exc),
-                "raw_sse": "\\n".join(raw_lines),
+                "raw_sse": "\n".join(raw_lines),
             }, call_id=call_id, attempt=stream_attempt)
             # A model that sends no data before timeout should not consume
             # three HTTP retries and four model-level JSON retries.

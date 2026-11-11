@@ -2,9 +2,15 @@
 import unittest
 from unittest.mock import patch
 from src.editorial_digest import draft, validate_draft_bodies
+from src import editorial_digest as e
 from src.wide_discord import article_text
 
 class DraftIntegrityTests(unittest.TestCase):
+    def setUp(self):
+        patcher = patch.object(e, "FALLBACK_MODEL", e.MODEL)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def row(self, ident, category="gaming"):
         return {
             "id":ident, "category":category, "title":"Test topic",

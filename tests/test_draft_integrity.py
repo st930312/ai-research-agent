@@ -25,7 +25,8 @@ class DraftIntegrityTests(unittest.TestCase):
         rows=[self.row(1),self.row(2,"finance")]
         long="事件及產業影響分析。"*35
         import json
-        with patch("src.editorial_digest.enrich",side_effect=lambda x:{**x,"body_status":"ok"}),\
+        with patch("src.editorial_digest.time.sleep"), \
+             patch("src.editorial_digest.enrich",side_effect=lambda x:{**x,"body_status":"ok"}),\
              patch("src.editorial_digest._request_ai",return_value=json.dumps({
                  "articles":[{"id":1,"description":long}]},ensure_ascii=False)):
             with self.assertRaisesRegex(RuntimeError,"INCOMPLETE_AI_BODY"):

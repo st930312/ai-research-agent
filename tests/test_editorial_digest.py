@@ -106,22 +106,24 @@ class EditorialDigestTests(unittest.TestCase):
         self.assertEqual(sleeper.call_count, 1)
 
     def test_no_per_run_ai_call_limit(self):
-        # A large previous call count must not block a valid new request.
-        # Provider-side quotas and bounded per-operation retries still apply.
+        # Application must not block requests based on prior call count.
         from unittest.mock import MagicMock
         import json
         metrics = {"calls": 100, "latencies": []}
         response = MagicMock()
+        event = {
+            "choices": [{"delta": {"content": '{"ok":true}'}}]
+        }
+        payload = ("data: " + json.dumps(event) + "\n").encode("utf-8")
         response.__enter__.return_value.__iter__.return_value = iter([
-            b'data: {"choices":[{"delta":{"content":"{\"ok\":true}"}}]}\\n',
-            b'data: [DONE]\\n',
+            payload, b"data: [DONE]\n",
         ])
-        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}), \\
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}), \
              patch("src.editorial_digest.urllib.request.urlopen",
                    return_value=response):
             answer = e._request_ai(
                 [{"role": "user", "content": "test"}], 100, metrics)
-        self.assertIn("ok", answer)
+        self.assertEqual(answer, '{"ok":true}')
         self.assertEqual(metrics["calls"], 101)
 
 if __name__ == "__main__":

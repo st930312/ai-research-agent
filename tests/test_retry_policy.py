@@ -8,17 +8,17 @@ from src.retry_policy import with_backoff, transient_error, backoff_delay
 class RetryPolicyTests(unittest.TestCase):
     @patch("src.retry_policy.time.sleep")
     @patch("src.retry_policy.random.uniform", side_effect=lambda lo, hi: lo)
-    def test_transient_429_retries_twice_with_exponential_backoff(self, _rng, sleep):
+    def test_transient_429_retries_three_times_with_long_backoff(self, _rng, sleep):
         calls = []
         def failing():
             calls.append(True)
-            if len(calls) < 3:
+            if len(calls) < 4:
                 raise urllib.error.HTTPError("https://example.org", 429, "Rate limit",
                                              {"Retry-After": "0"}, None)
             return "ok"
         self.assertEqual(with_backoff(failing, label="rss"), "ok")
-        self.assertEqual(len(calls), 3)
-        self.assertEqual([call.args[0] for call in sleep.call_args_list], [3.0, 6.0])
+        self.assertEqual(len(calls), 4)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [60.0, 90.0, 120.0])
 
     @patch("src.retry_policy.time.sleep")
     def test_nontransient_404_does_not_retry(self, sleep):
@@ -40,8 +40,8 @@ class RetryPolicyTests(unittest.TestCase):
     @patch("src.retry_policy.random.uniform", side_effect=lambda lo, hi: lo)
     def test_retry_after_is_respected(self, _rng):
         err = urllib.error.HTTPError("https://example.org", 429, "Rate limit",
-                                     {"Retry-After": "18"}, None)
-        self.assertEqual(backoff_delay(1, err), 18.0)
+                                     {"Retry-After": "210"}, None)
+        self.assertEqual(backoff_delay(1, err), 210.0)
 
     def test_transient_error_classification(self):
         self.assertTrue(transient_error(urllib.error.URLError("timeout")))

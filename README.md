@@ -47,7 +47,7 @@ Manual inputs:
 - `live_ai=true`, `send_discord=false`: generate 15-story wide-format preview in GitHub Actions logs (no Discord).
 - `live_ai=true`, `send_discord=true`: send the selected 15-story briefing to Discord.
 
-Uses GitHub Actions Secrets `NVIDIA_API_KEY` and `DISCORD_WEBHOOK_URL` and automatic `github.token`. Maximum **9 NVIDIA AI calls** per execution (normally up to 7 for selection, audit and drafting, with 2 reserved for missing-body retries); no paid fallback. Incomplete AI bodies trigger at most two delayed, targeted retry calls; unresolved content still blocks all Discord delivery. RSS and public article fetches retry only transient failures with capped exponential backoff, jitter and `Retry-After` support. Before the production test, manually verify the NVIDIA endpoint is free for your account.
+Uses GitHub Actions Secrets `NVIDIA_API_KEY` and `DISCORD_WEBHOOK_URL` and automatic `github.token`. No application-level NVIDIA API call limit per execution; the provider's own rate limits and quotas still apply. No paid fallback. Incomplete AI bodies trigger at most two delayed, targeted retry calls; unresolved content still blocks all Discord delivery. RSS and public article fetches retry only transient failures with capped exponential backoff, jitter and `Retry-After` support. Before the production test, manually verify the NVIDIA endpoint is free for your account.
 
 ## Discord layout
 

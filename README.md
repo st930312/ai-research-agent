@@ -35,6 +35,10 @@ All displayed source URLs remain clickable, and each component of a roundup is s
 
 Headline/event near-duplicate suppression, Neon publication-history filtering and URL de-duplication occur before the AI selection. The editorial selection validates source IDs, categories, and fixed quotas, and supports clearly labeled metadata-based fallback when an AI shortlist is incomplete. RSS dates and HN dates are filtered to recent items. Source URL is always preserved.
 
+## NVIDIA AI response diagnostics
+
+Every NVIDIA call records the complete returned SSE stream and extracted content in GitHub Actions logs using `AI_DIAGNOSTIC` entries. HTTP failures include the response status and full error body; interrupted streams include the raw lines received before failure. The logger masks configured `NVIDIA_API_KEY`, `DATABASE_URL`, `DISCORD_WEBHOOK_URL`, `GH_TOKEN` and `GITHUB_TOKEN` values, and never prints request Authorization headers. Provider responses may contain public news excerpts and can be verbose; inspect and limit GitHub Actions log access and retention appropriately. A malformed JSON result continues to fail closed after bounded retries; diagnostics are not published to Discord.
+
 ## Workflow
 
 **Daily delivery:** GitHub Actions `v3-tech-digest.yml` runs at **08:30 Asia/Taipei** (UTC cron `30 0 * * *`), with NVIDIA AI and Discord sending automatically enabled only for the scheduled event. GitHub Actions cron runs may be delayed by the platform. Manual dispatch keeps both `live_ai` and `send_discord` opt-in and defaults off. The completed one-time publishing workflow has been removed.

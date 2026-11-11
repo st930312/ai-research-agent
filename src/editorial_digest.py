@@ -138,6 +138,8 @@ def _parse_json(text):
             continue
     raise ValueError("No complete JSON object in model response")
 
+from .retry_policy import MAX_RETRIES, ai_content_delay, with_backoff
+
 def _request_ai(messages, max_tokens, metrics):
     key = os.getenv("NVIDIA_API_KEY")
     if not key:
@@ -158,21 +160,33 @@ def _request_ai(messages, max_tokens, metrics):
     started = time.monotonic()
     first = None
     fragments = []
-    with urllib.request.urlopen(req, timeout=180) as response:
-        for raw in response:
-            line = raw.decode("utf-8", errors="replace").strip()
-            if not line.startswith("data: ") or line == "data: [DONE]":
-                continue
-            try:
-                packet = json.loads(line[6:])
-                delta = (packet.get("choices") or [{}])[0].get("delta") or {}
-                content = delta.get("content")
-                if content:
-                    if first is None:
-                        first = time.monotonic() - started
-                    fragments.append(content)
-            except (IndexError, KeyError, TypeError, ValueError):
-                continue
+    def receive_stream():
+        nonlocal first
+        with urllib.request.urlopen(req, timeout=180) as response:
+            for raw in response:
+                line = raw.decode("utf-8", errors="replace").strip()
+                if not line.startswith("data: ") or line == "data: [DONE]":
+                    continue
+                try:
+                    packet = json.loads(line[6:])
+                    delta = (packet.get("choices") or [{}])[0].get("delta") or {}
+                    content = delta.get("content")
+                    if content:
+                        if first is None:
+                            first = time.monotonic() - started
+                        fragments.append(content)
+                except (IndexError, KeyError, TypeError, ValueError):
+                    continue
+
+    # A transport failure is retried only if it is transient; discard any
+    # partial fragments from an interrupted stream before the next attempt.
+    def fetch_stream():
+        nonlocal first
+        fragments.clear()
+        first = None
+        receive_stream()
+
+    with_backoff(fetch_stream, retries=MAX_RETRIES, label="nvidia_api")
     metrics["latencies"].append({
         "ttfc": round(first, 2) if first is not None else None,
         "total": round(time.monotonic() - started, 2)
@@ -183,20 +197,15 @@ def _request_ai(messages, max_tokens, metrics):
     return result
 
 def _request_parsed_ai(messages, max_tokens, metrics, stage):
-    """One delayed retry for malformed JSON; no per-run request cap.
-
-    A malformed model result is not a source crawling error; only the failed
-    AI operation is retried. Never treat incomplete responses as valid.
-    """
-    for attempt in range(2):
+    """Retry malformed JSON up to three times, preserving fail-closed behavior."""
+    for attempt in range(MAX_RETRIES + 1):
         try:
             return _parse_json(_request_ai(messages, max_tokens, metrics))
         except ValueError as exc:
-            if attempt:
+            if attempt == MAX_RETRIES:
                 raise
-            import random
-            delay = min(30, 5 + random.uniform(0, 3))
-            print(f"AI_JSON_RETRY stage={stage} attempt=1/1 "
+            delay = ai_content_delay(attempt + 1)
+            print(f"AI_JSON_RETRY stage={stage} attempt={attempt + 1}/{MAX_RETRIES} "
                   f"sleep_s={delay:.1f} reason={type(exc).__name__}", flush=True)
             time.sleep(delay)
 
@@ -617,14 +626,13 @@ def draft(selected, metrics):
             drafted.append(_finalize_draft_row(row, desc))
 
     # Retry only incomplete articles, after all original batches are finished.
-    # Max two extra AI calls, with exponential backoff and jitter.
+    # Max three extra AI calls, with long backoff and jitter.
     # A failed retry never causes a blank body to be published.
-    for attempt in (1, 2):
+    for attempt in range(1, MAX_RETRIES + 1):
         if not pending:
             break
-        import random
-        delay = min(30, (5 * 2 ** (attempt - 1)) + random.uniform(0, 3))
-        print(f"DRAFT_RETRY attempt={attempt}/2 missing={len(pending)} "
+        delay = ai_content_delay(attempt)
+        print(f"DRAFT_RETRY attempt={attempt}/{MAX_RETRIES} missing={len(pending)} "
               f"sleep_s={delay:.1f}", flush=True)
         time.sleep(delay)
         # Retry each missing article with its own source material. When more

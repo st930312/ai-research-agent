@@ -83,6 +83,28 @@ class EditorialDigestTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 e.post_discord([])
 
+    def test_malformed_shortlist_json_retries_once_with_backoff(self):
+        responses = iter(["not JSON", '{"selected":[]}'])
+        metrics = {"calls": 0, "latencies": []}
+        with patch("src.editorial_digest._request_ai",
+                   side_effect=lambda *args, **kwargs: next(responses)) as ai, \
+             patch("src.editorial_digest.time.sleep") as sleeper:
+            parsed = e._request_parsed_ai(
+                [{"role": "system", "content": "test"}], 100, metrics, "shortlist")
+        self.assertEqual(parsed, {"selected": []})
+        self.assertEqual(ai.call_count, 2)
+        sleeper.assert_called_once()
+
+    def test_malformed_json_retry_stops_after_one_retry(self):
+        metrics = {"calls": 0, "latencies": []}
+        with patch("src.editorial_digest._request_ai",
+                   return_value="not JSON") as ai, \
+             patch("src.editorial_digest.time.sleep") as sleeper:
+            with self.assertRaisesRegex(ValueError, "No complete JSON"):
+                e._request_parsed_ai([], 100, metrics, "shortlist")
+        self.assertEqual(ai.call_count, 2)
+        self.assertEqual(sleeper.call_count, 1)
+
     def test_budget_limit(self):
         metrics = {"calls": e.MAX_API_CALLS, "latencies": []}
         with self.assertRaisesRegex(RuntimeError, "budget"):

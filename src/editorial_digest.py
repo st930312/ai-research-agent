@@ -188,7 +188,7 @@ def _request_ai(messages, max_tokens, metrics, model=None):
 
     def receive_stream():
         nonlocal first
-        with urllib.request.urlopen(req, timeout=180) as response:
+        with urllib.request.urlopen(req, timeout=float(os.getenv("NVIDIA_TIMEOUT_SECONDS", "40"))) as response:
             for raw in response:
                 # Preserve *every* raw SSE line for diagnostics, including
                 # unknown provider fields, finish_reason and token usage.

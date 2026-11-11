@@ -1,0 +1,54 @@
+name: NVIDIA Large-Model Probe 2026-11-12
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-nvidia-candidates-20261112.yml'
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    strategy:
+      fail-fast: false
+      matrix:
+        model:
+          - nvidia/nemotron-3.5-super-vl-120b-a12b
+          - google/gemma-4-31b-it
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Probe each model independently (no Discord, no database writes)
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          MODEL_TO_PROBE: ${{ matrix.model }}
+        run: |
+          python - <<'PY'
+          import json,os,time,urllib.request,urllib.error,re
+          model=os.environ["MODEL_TO_PROBE"]
+          print("PROBE_MODEL="+model,flush=True)
+          payload={"model":model,"messages":[{"role":"user","content":'Only respond with {"ok":true}'}],"stream":False,"max_tokens":1024}
+          req=urllib.request.Request("https://integrate.api.nvidia.com/v1/chat/completions",
+             data=json.dumps(payload).encode(),headers={
+             "Authorization":"Bearer "+os.environ["NVIDIA_API_KEY"],
+             "Accept":"application/json","Content-Type":"application/json"},method="POST")
+          t=time.monotonic()
+          try:
+            with urllib.request.urlopen(req,timeout=28) as response:
+              data=json.loads(response.read(50000).decode("utf-8"))
+              choice=(data.get("choices") or [{}])[0]
+              content=(choice.get("message") or {}).get("content") or ""
+              print("PROBE_STATUS="+str(response.status),flush=True)
+              print("PROBE_FINISH="+str(choice.get("finish_reason")),flush=True)
+              print("PROBE_CONTENT="+repr(content[:500]),flush=True)
+              print("PROBE_JSON_OK="+str(bool(re.search(r'\{\s*"ok"\s*:\s*true\s*\}',content,re.I))),flush=True)
+          except urllib.error.HTTPError as exc:
+            print("PROBE_HTTP="+str(exc.code),flush=True)
+            print("PROBE_BODY="+repr(exc.read(1000).decode("utf-8",errors="replace")),flush=True)
+          except Exception as exc:
+            print("PROBE_ERROR="+type(exc).__name__+":"+str(exc)[:250],flush=True)
+          print("PROBE_SECONDS="+str(round(time.monotonic()-t,2)),flush=True)
+          PY

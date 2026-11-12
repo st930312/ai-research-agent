@@ -202,9 +202,10 @@ class EditorialDigestTests(unittest.TestCase):
         ):
             with self.subTest(model=model):
                 response = MagicMock()
+                event = {"choices": [{"delta": {"content": '{"ok":true}'}}]}
                 response.__enter__.return_value.__iter__.return_value = iter([
-                    b'data: {"choices":[{"delta":{"content":"{\\"ok\\":true}"}}]}\\n',
-                    b'data: [DONE]\\n',
+                    ("data: " + json.dumps(event) + "\n").encode("utf-8"),
+                    b"data: [DONE]\n",
                 ])
                 with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}), \
                      patch("src.editorial_digest.urllib.request.urlopen",

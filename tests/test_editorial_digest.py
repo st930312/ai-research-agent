@@ -206,9 +206,9 @@ class EditorialDigestTests(unittest.TestCase):
                     b'data: {"choices":[{"delta":{"content":"{\\"ok\\":true}"}}]}\\n',
                     b'data: [DONE]\\n',
                 ])
-                with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}), \\
+                with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}), \
                      patch("src.editorial_digest.urllib.request.urlopen",
-                           return_value=response) as urlopen, \\
+                           return_value=response) as urlopen, \
                      redirect_stdout(io.StringIO()):
                     e._request_ai([], 1500, {"calls": 0, "latencies": []},
                                   model=model)

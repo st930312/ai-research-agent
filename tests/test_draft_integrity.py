@@ -75,6 +75,45 @@ class DraftIntegrityTests(unittest.TestCase):
         self.assertEqual(len(calls), 4)
         self.assertEqual(sleeper.call_count, 3)
 
+    def test_gaming_roundup_summarizes_every_source_without_truncation(self):
+        from src.wide_discord import format_wide_messages
+        sources = [self.row(i, "gaming") for i in (1, 2, 3)]
+        sources[0]["roundup_sources"] = sources[1:]
+        for i, row in enumerate(sources, 1):
+            row["title"] = f"獨立遊戲事件{i}"
+            row["description"] = f"第{i}則來源證據"
+        responses = iter([{"summary": f"第{i}則獨立報導：" + ("新聞具體內容與玩家影響。" * 65)}
+                          for i in (1, 2, 3)])
+        with patch("src.editorial_digest._request_parsed_ai",
+                   side_effect=lambda *args, **kwargs: next(responses)) as ai:
+            result = e._draft_gaming_roundup(sources[0], {"calls": 0, "latencies": []})
+        self.assertEqual(ai.call_count, 3)
+        self.assertEqual(result["gaming_summary_count"], 3)
+        self.assertTrue(all(f"第{i}則獨立報導" in result["ai_description"]
+                            for i in (1, 2, 3)))
+        self.assertGreater(len(result["ai_description"]), 650)
+        validate_draft_bodies([result])
+        from src.wide_discord import format_wide_messages
+        output = format_wide_messages([result], {"gaming": ("今日遊戲情報精選", 1, 0)})
+        self.assertTrue(all(len(message) <= 2000 for message in output))
+        combined = "\n".join(output)
+        for i in (1, 2, 3):
+            self.assertIn(f"第{i}則獨立報導", combined)
+            self.assertIn(f"https://example.org/{i}", combined)
+
+    def test_gaming_roundup_rejects_unsummarized_extra(self):
+        row = self.row(1, "gaming")
+        row["roundup_sources"] = [self.row(2, "gaming")]
+        with patch("src.editorial_digest._request_parsed_ai",
+                   side_effect=[{"summary": "來源一事件與影響。" * 30},
+                                {"summary": "短"}] * 3), \
+             patch("src.editorial_digest.time.sleep"):
+            with self.assertRaisesRegex(RuntimeError, "GAMING_SOURCE_INCOMPLETE"):
+                e._draft_gaming_roundup(row, {"calls": 0, "latencies": []})
+        with self.assertRaisesRegex(RuntimeError, "GAMING_ROUNDUP_INCOMPLETE"):
+            validate_draft_bodies([{**row, "ai_description": "文字" * 120,
+                                    "gaming_summary_count": 1}])
+
     def test_renderer_rejects_missing_body(self):
         with self.assertRaisesRegex(ValueError,"no real body"):
             article_text(self.row(1),1)
@@ -82,12 +121,12 @@ class DraftIntegrityTests(unittest.TestCase):
     def test_pre_send_guard_rejects_placeholders(self):
         with self.assertRaisesRegex(RuntimeError,"Placeholder"):
             validate_draft_bodies([{
-                **self.row(1),"ai_description":"本則 AI 摘要未完整產生，請閱讀來源。" * 10,
+                **self.row(1),"gaming_summary_count":1,"ai_description":"本則 AI 摘要未完整產生，請閱讀來源。" * 10,
             }])
 
     def test_long_real_body_passes(self):
         validate_draft_bodies([{
-            **self.row(1), "ai_description":"已報導事件及具體影響。"*24
+            **self.row(1), "gaming_summary_count":1, "ai_description":"已報導事件及具體影響。"*24
         }])
 
 if __name__ == "__main__":

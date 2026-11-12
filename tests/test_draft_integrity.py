@@ -105,8 +105,8 @@ class DraftIntegrityTests(unittest.TestCase):
         row = self.row(1, "gaming")
         row["roundup_sources"] = [self.row(2, "gaming")]
         with patch("src.editorial_digest._request_parsed_ai",
-                   side_effect=[{"summary": "來源一事件與影響。" * 30},
-                                {"summary": "短"}] * 3), \
+                   side_effect=[{"summary": "來源一事件與影響。" * 30}] +
+                               [{"summary": "短"}] * 4), \
              patch("src.editorial_digest.time.sleep"):
             with self.assertRaisesRegex(RuntimeError, "GAMING_SOURCE_INCOMPLETE"):
                 e._draft_gaming_roundup(row, {"calls": 0, "latencies": []})

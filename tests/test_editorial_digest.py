@@ -189,6 +189,36 @@ class EditorialDigestTests(unittest.TestCase):
         self.assertIn("raw_sse", output.getvalue())
         self.assertIn("extracted_content", output.getvalue())
 
+    def test_nemotron_models_explicitly_disable_reasoning(self):
+        # Regression for 2026-11-12 daily run: all output tokens were spent
+        # on reasoning_content, leaving empty content and finish_reason=length.
+        import io
+        import json
+        from contextlib import redirect_stdout
+        from unittest.mock import MagicMock
+        for model in (
+            "nvidia/nemotron-3-ultra-550b-a55b",
+            "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        ):
+            with self.subTest(model=model):
+                response = MagicMock()
+                response.__enter__.return_value.__iter__.return_value = iter([
+                    b'data: {"choices":[{"delta":{"content":"{\\"ok\\":true}"}}]}\\n',
+                    b'data: [DONE]\\n',
+                ])
+                with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}), \\
+                     patch("src.editorial_digest.urllib.request.urlopen",
+                           return_value=response) as urlopen, \\
+                     redirect_stdout(io.StringIO()):
+                    e._request_ai([], 1500, {"calls": 0, "latencies": []},
+                                  model=model)
+                request_body = json.loads(urlopen.call_args.args[0].data.decode())
+                self.assertEqual(request_body["model"], model)
+                self.assertEqual(
+                    request_body["chat_template_kwargs"], {"enable_thinking": False}
+                )
+                self.assertEqual(request_body["max_tokens"], 1500)
+
     def test_no_per_run_ai_call_limit(self):
         # Application must not block requests based on prior call count.
         from unittest.mock import MagicMock

@@ -72,10 +72,10 @@ Every NVIDIA call records the complete returned SSE stream and extracted content
 
 ## Workflow
 
-**Daily delivery:** GitHub Actions `v3-tech-digest.yml` runs at **08:30 Asia/Taipei** (UTC cron `30 0 * * *`), with NVIDIA AI and Discord sending automatically enabled only for the scheduled event. GitHub Actions cron runs may be delayed by the platform. Manual dispatch keeps both `live_ai` and `send_discord` opt-in and defaults off. The completed one-time publishing workflow has been removed.
+**Daily delivery:** GitHub Actions `v3-tech-digest.yml` runs at **03:00 Asia/Taipei** (UTC cron `0 19 * * *`), with NVIDIA AI and Discord sending automatically enabled only for the scheduled event. GitHub Actions cron runs may be delayed by the platform. Manual dispatch keeps both `live_ai` and `send_discord` opt-in and defaults off. The completed one-time publishing workflow has been removed.
 
 
-[Actions: Technology Briefing - Daily 08:30 Asia/Taipei](https://github.com/st930312/ai-research-agent/actions/workflows/v3-tech-digest.yml)
+[Actions: Technology Briefing - Daily 03:00 Asia/Taipei](https://github.com/st930312/ai-research-agent/actions/workflows/v3-tech-digest.yml)
 
 Manual inputs:
 - `live_ai=false`, `send_discord=false`: offline unit tests and source collection.
@@ -115,13 +115,13 @@ delivery is impossible to guarantee without a Discord-side idempotency key.
 An ambiguous pending message must be manually reconciled. No automatic resend
 is attempted. A live Discord send without `DATABASE_URL` fails closed to avoid losing publication history.
 
-The [scheduled production workflow](https://github.com/st930312/ai-research-agent/actions/workflows/v3-tech-digest.yml) runs offline Python tests and checks the database if configured; manual `live_ai` and `send_discord` toggles control AI and delivery. Daily schedule: 08:30 Asia/Taipei (00:30 UTC); the scheduled event enables both AI and Discord.
+The [scheduled production workflow](https://github.com/st930312/ai-research-agent/actions/workflows/v3-tech-digest.yml) runs offline Python tests and checks the database if configured; manual `live_ai` and `send_discord` toggles control AI and delivery. Daily schedule: 03:00 Asia/Taipei (19:00 UTC (previous day)); the scheduled event enables both AI and Discord.
 
 **Verification status on 2026-11-09:** GitHub Actions confirmed Neon connectivity and schema migration. Fourteen articles actually sent to Discord on 2026-11-09 were recovered from that workflow's public output and added to the Neon history with original URLs and summarized content. V4 preview acceptance runs without sending Discord (`.github/workflows/v4-semantic-preview.yml`).
 
 ## Safety, cost, limitations
 
-- **Scheduled daily delivery at 08:30 Taiwan time; no full report/artifact storage**. Publication metadata is stored in Neon PostgreSQL when configured.
+- **Scheduled daily delivery at 03:00 Taiwan time; no full report/artifact storage**. Publication metadata is stored in Neon PostgreSQL when configured.
 - No SearXNG server currently needed.
 - Sourced text is untrusted input, not commands. AI is prompted not to fabricate dates or metrics.
 - GitHub release discovery checks a curated base list and up to 12 recently published repositories from Neon, using stable, recent releases. Star-count increases alone are not a significant update.

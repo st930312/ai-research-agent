@@ -172,8 +172,13 @@ def _request_ai(messages, max_tokens, metrics, model=None):
         "model": active_model, "messages": messages, "stream": True,
         "max_tokens": max_tokens,
     }
+    # Both Nemotron 3 Ultra and Nemotron 3.5 Super VL default to reasoning ON.
+    # The old default consumed every completion token as reasoning_content,
+    # leaving empty content and finish_reason="length" in the real daily run.
+    if active_model.startswith(("nvidia/nemotron-3-", "nvidia/nemotron-3.5-")):
+        body["chat_template_kwargs"] = {"enable_thinking": False}
     if active_model == "z-ai/glm-5.3-flash":
-        # GLM cannot disable reasoning; allow room for internal reasoning.
+        # Keep compatibility when users explicitly configure GLM as a model.
         body["reasoning_effort"] = "low"
         body["max_tokens"] = max(max_tokens, 8192)
     req = urllib.request.Request(

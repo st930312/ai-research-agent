@@ -56,6 +56,16 @@ twice using the NVIDIA endpoint (about 25 seconds per request). This confirms
 basic endpoint access, not the quality or reliability of a complete news run.
 Earlier DeepSeek V4.1 Flash and GLM-5.3 Flash endpoint tests timed out.
 
+## Gaming roundup completeness
+
+Gaming stories are composed from separate source-level AI summaries. Each selected
+primary or roundup source must receive its own Traditional Chinese summary
+(approximately 180–350 characters, flexible when evidence warrants), its own
+heading, and traceable link. The final combined body is not truncated at
+650 characters; long Discord posts are split across messages. Missing or
+too-short source summaries are retried and block publication rather than
+silently publishing only the first game while keeping two bare source URLs.
+
 ## NVIDIA AI response diagnostics
 
 Every NVIDIA call records the complete returned SSE stream and extracted content in GitHub Actions logs using `AI_DIAGNOSTIC` entries. HTTP failures include the response status and full error body; interrupted streams include the raw lines received before failure. The logger masks configured `NVIDIA_API_KEY`, `DATABASE_URL`, `DISCORD_WEBHOOK_URL`, `GH_TOKEN` and `GITHUB_TOKEN` values, and never prints request Authorization headers. Provider responses may contain public news excerpts and can be verbose; inspect and limit GitHub Actions log access and retention appropriately. A malformed JSON result continues to fail closed after bounded retries; diagnostics are not published to Discord.

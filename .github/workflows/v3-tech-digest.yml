@@ -1,9 +1,9 @@
-name: Technology Briefing - Daily 08:30 Asia/Taipei
+name: Technology Briefing - Daily 03:00 Asia/Taipei
 
 on:
   schedule:
-    # GitHub Actions uses UTC: 00:30 UTC = 08:30 Asia/Taipei (UTC+8).
-    - cron: '30 0 * * *'
+    # GitHub Actions uses UTC: 19:00 UTC (previous day) = 03:00 Asia/Taipei (UTC+8).
+    - cron: '0 19 * * *'
   workflow_dispatch:
     inputs:
       live_ai:

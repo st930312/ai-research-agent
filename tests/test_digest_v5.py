@@ -178,6 +178,21 @@ class V5Tests(unittest.TestCase):
         self.assertIn("政策消息已確認", result.messages[0])
         self.assertNotIn("沒有來源的離職謠言", result.messages[0])
 
+    def test_tech_article_blocks_unverified_personal_claims_and_destinations(self):
+        from src.digest_services import unsafe_tech_article
+        base = {"title": "Open-source project", "url": "https://github.com/a/b",
+                "ai_description": "專案提供公開原始碼與範例。"}
+        self.assertIsNone(unsafe_tech_article(base))
+        self.assertEqual(unsafe_tech_article({
+            **base, "ai_description": "可到 go-release.xyz 下載執行程式。"
+        }), "unverified_external_domain")
+        self.assertEqual(unsafe_tech_article({
+            **base, "title": "Jensen Huang wishes to return to Nvidia",
+        }), "unverified_personal_claim")
+        self.assertIsNone(unsafe_tech_article({
+            **base, "ai_description": "詳情請見 https://github.com/a/b"
+        }))
+
     def test_gaming_format_omits_generic_technology_summary(self):
         from src.wide_discord import format_wide_messages
         articles = [{

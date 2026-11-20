@@ -241,7 +241,17 @@ class StockService:
             "publisher": row.get("publisher"),
             "url": row.get("url"),
         } for i, row in enumerate(ordered, 1)]
+        premarket = now.hour < 9
+        report_mode = ("開盤前" if premarket else
+                       "當日開盤後／市場追蹤（不可稱為開盤前）")
         instruction = (
+            f"報告實際執行時刻為 {now.isoformat()}，模式為 {report_mode}。"
+            "不得把今天當昨天；不要說資料時間之後尚未收盤的事件已收盤。"
+            "未來行情不可預測為事實；所有行情都必須以來源的時間戳記為準。"
+            "排除私人生活八卦、未經證實的人事變動及謠言，"
+            "即使來源標題提及傳聞，也不能寫成已確認事件。"
+            "沒有明確來源支持的價格、漲跌、政策因果或法人金額必須省略。"
+            "不得為了湊篇幅補寫資訊。"
             "你是台灣股市開盤前情報編輯，撰寫供早上開盤前閱讀的市場簡報，"
             "不是單一股票推薦。繁體中文，根據提供的前交易日台股新聞、"
             "美股／夜盤消息、可得市場日線數據整理市場全貌。"
@@ -306,17 +316,48 @@ class StockService:
             citations = "\n".join(
                 f"[{i}] {row['url']}" for i, row in enumerate(sources, 1)
             )
-            header = (f"# 📈 台股開盤前情報｜{now:%Y/%m/%d}\n"
+            briefing_name = ("台股開盤前情報" if premarket else
+                             "台股盤勢觀察（開盤後更新）")
+            header = (f"# 📈 {briefing_name}｜{now:%Y/%m/%d}\n"
                       f"-# 資料蒐集時間：{now:%Y/%m/%d %H:%M}（台灣時間）\n\n")
             note = "\n\n-# 歷史日線／新聞整理；不代表即時行情或投資建議"
             body = header + "\n\n".join(sections) + "\n\n" + citations + note
             if len(body) <= 1900 and sum(len(s) for s in sections) >= 300:
-                print(f"STOCK_BRIEF_READY chars={len(body)} "
-                      f"news={len(indexed)} quoted={len(snapshot)}", flush=True)
-                return DigestResult(
-                    "stock", [], [body], metrics,
-                    daily_identity=now.date().isoformat()
+                verification = editorial._request_parsed_ai([
+                    {"role": "system", "content": (
+                        "你是嚴格的金融新聞事實核對員，不負責美化文字。"
+                        "逐句查核輸出是否可被給定新聞標題、簡述或帶時間戳的"
+                        "行情數據支持。特別抓出未證實人物離職、私人八卦、"
+                        "錯把今天寫昨天、把日線當即時盤中、憑空添加精確點數、"
+                        "由相關性推斷因果等問題。"
+                        "引述意見必須標為引述，缺少來源不能猜測。"
+                        '只回傳 JSON：{"supported":true,"issues":[]}。'
+                        "有任何實質未獲支持的斷言，supported 必須為 false，"
+                        "issues 列出待刪改語句。"
+                    )},
+                    {"role": "user", "content": json.dumps({
+                        "now": now.isoformat(), "market_snapshot": snapshot,
+                        "news": indexed, "draft": body,
+                    }, ensure_ascii=False)},
+                ], max_tokens=1800, metrics=metrics, stage="stock_verify")
+                issues = verification.get("issues")
+                if verification.get("supported") is True and issues == []:
+                    print(f"STOCK_BRIEF_READY chars={len(body)} "
+                          f"news={len(indexed)} quoted={len(snapshot)}", flush=True)
+                    return DigestResult(
+                        "stock", [], [body], metrics,
+                        daily_identity=now.date().isoformat()
+                    )
+                if not isinstance(issues, list):
+                    issues = ["事實查核未能確認，請刪除沒有來源的精確數據與斷言"]
+                last_reason = "unsupported_claims"
+                print(f"STOCK_FACT_CHECK_REJECTED issues={len(issues)}", flush=True)
+                instruction += (
+                    " 事實查核未通過，以下主張必須刪除或改成有來源支持的保守表述："
+                    + json.dumps(issues[:8], ensure_ascii=False)
+                    + " 必須完全避免人物八卦與未經證實的消息。"
                 )
+                continue
             last_reason = f"length_{len(body)}"
             instruction += (
                 " 上一次回覆超出單則 Discord 1900 字元預算或內容不足。"

@@ -36,11 +36,13 @@ class AIRequestScheduler:
                 print(f"AI_QUEUE_DELAY model={label} seconds={delay:.1f}", flush=True)
                 self._sleep(delay)
             start = self._clock()
-            self._next_start = start + self.min_interval
             print(f"AI_QUEUE_START model={label} ticket={ticket} "
                   f"wait_s={start - queued:.2f}", flush=True)
             try:
                 return action()
             finally:
+                # Cool down AFTER the last stream completes; long generation
+                # alone must not eliminate the between-request delay.
+                self._next_start = self._clock() + self.min_interval
                 self._serving += 1
                 self._condition.notify_all()

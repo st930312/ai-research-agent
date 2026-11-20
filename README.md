@@ -26,14 +26,17 @@ The legacy `src.editorial_digest` module remains intact for tests and reuse.
 Collection and preparation run concurrently in three threads within **one**
 Python process. Every NVIDIA HTTP attempt, including retries, passes through
 one shared FIFO `AIRequestScheduler` with one active call and configurable
-minimum interval (`NVIDIA_MIN_INTERVAL_SECONDS`, default 10 seconds).
+cooldown after each completed request (`NVIDIA_MIN_INTERVAL_SECONDS`, default 10 seconds).
 Completed services are published separately via the existing Neon ledger;
 one failed service does not cancel another successful service. Every service
 has its own success/failure log and independently verified Discord delivery.
 
 The manual workflow defaults to AI/Discord off; scheduled runs publish.
-V5 has unit tests and mocked integration checks. Actual model performance
-should still be monitored in subsequent scheduled runs.
+V5 includes unit tests, real parallel collection checks, and a non-publishing
+NVIDIA stock preview. A second evidence-check pass audits stock claims against
+timestamped source snippets; if it cannot verify the draft after bounded
+corrections, only StockService is blocked. Actual combined-service publication
+still needs observation in subsequent scheduled runs.
 
 ## Legacy V4 selection rules (inside TechService)
 

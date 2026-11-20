@@ -129,14 +129,54 @@ class V5Tests(unittest.TestCase):
         def model_answer(*args, **kwargs):
             calls.append(kwargs.get("stage"))
             if kwargs.get("stage") == "stock_verify":
-                return {"supported": False, "issues": ["沒有來源支持的人事斷言"]}
+                return {"supported": False, "issues": [
+                    {"section": "events", "claim": "沒有來源支持的人事斷言",
+                     "reason": "資料不完整"}]}
+            if kwargs.get("stage") == "stock_repair":
+                return {"updates": {"events": payload["events"]}}
             return payload
         with patch("src.digest_services.editorial._request_parsed_ai",
                    side_effect=model_answer):
             with self.assertRaisesRegex(RuntimeError, "unsupported_claims"):
                 service.build({"news": [source], "snapshot": []}, [], now)
         self.assertEqual(calls,
-                         ["stock_brief", "stock_verify", "stock_brief", "stock_verify"])
+                         ["stock_brief", "stock_verify", "stock_repair",
+                          "stock_verify", "stock_repair", "stock_verify"])
+
+    def test_stock_surgical_repair_preserves_verified_sections(self):
+        service = StockService()
+        now = datetime(2026, 11, 20, 8, 0, tzinfo=ZoneInfo("Asia/Taipei"))
+        draft = {k: "資料來源支持的市場概況。" * 7 for k in
+                 ("market", "overnight", "events", "flows", "watch")}
+        draft["events"] = "沒有來源的離職謠言。" * 8
+        draft["source_ids"] = [1]
+        stages = []
+        def answer(messages, max_tokens, metrics, stage):
+            stages.append(stage)
+            if stage == "stock_brief":
+                return draft.copy()
+            if stage == "stock_verify":
+                if stages.count("stock_verify") == 1:
+                    return {"supported": False, "issues": [
+                        {"section": "events", "claim": "沒有來源的離職謠言",
+                         "reason": "未經證實"}]}
+                return {"supported": True, "issues": []}
+            if stage == "stock_repair":
+                req = json.loads(messages[1]["content"])
+                self.assertEqual(req["allowed_keys"], ["events"])
+                return {"updates": {"events": "政策消息已確認，其他資料尚待核實。" * 6}}
+            self.fail(stage)
+        source = {"title": "台股行情", "description": "台股盤勢變化",
+                  "url": "https://example.com/stock",
+                  "published_at": now.isoformat()}
+        with patch("src.digest_services.editorial._request_parsed_ai",
+                   side_effect=answer):
+            result = service.build({"news": [source], "snapshot": []}, [], now)
+        self.assertEqual(stages, ["stock_brief", "stock_verify",
+                                   "stock_repair", "stock_verify"])
+        self.assertIn(draft["market"], result.messages[0])
+        self.assertIn("政策消息已確認", result.messages[0])
+        self.assertNotIn("沒有來源的離職謠言", result.messages[0])
 
     def test_gaming_format_omits_generic_technology_summary(self):
         from src.wide_discord import format_wide_messages

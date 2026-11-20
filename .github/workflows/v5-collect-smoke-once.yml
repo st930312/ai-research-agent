@@ -1,4 +1,4 @@
-name: V5 Stock Verified Preview (No Discord)
+name: V5 Stock Source-Checked Preview (No Discord)
 on:
   push:
     branches: [main]

@@ -150,11 +150,10 @@ class V5Tests(unittest.TestCase):
             def collect(self):
                 raise RuntimeError("source unavailable")
         scheduler = AIRequestScheduler(min_interval=0)
-        result = DigestOrchestrator(
-            services=[Bad(), Good()], scheduler=scheduler
-        ).run(live_ai=True, send_discord=False)
-        self.assertEqual(result["success"], ["good"])
-        self.assertEqual(result["failed"], {"bad": "RuntimeError"})
+        with self.assertRaisesRegex(RuntimeError, "V5_PARTIAL_FAILURE"):
+            DigestOrchestrator(
+                services=[Bad(), Good()], scheduler=scheduler
+            ).run(live_ai=True, send_discord=False)
         self.assertIsNone(editorial._AI_REQUEST_SCHEDULER)
 
     def test_scheduler_hook_is_used_by_nvidia_stream(self):

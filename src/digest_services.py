@@ -220,7 +220,17 @@ class StockService:
         # Previous-session market coverage must not be suppressed because a
         # similar headline occurred yesterday. We still deduplicate URLs
         # within this briefing and protect the entire daily send in Neon.
-        stories = candidates["news"]
+        # Business reporting and market data, not celebrity gossip or
+        # unconfirmed executive/personal scandals. Such headlines repeatedly
+        # led the model to invent a purported CEO resignation.
+        gossip = re.compile(
+            r"婚外情|緋聞|桃色|情變|私生活|間諜|戀情|醜聞|爆料", re.I
+        )
+        stories = [row for row in candidates["news"]
+                   if not gossip.search(
+                       (row.get("title") or "") + " " +
+                       (row.get("description") or "")
+                   )]
         snapshot = candidates["snapshot"]
         if not stories and not snapshot:
             raise RuntimeError("Stock sources unavailable; no fabricated brief")
@@ -246,7 +256,9 @@ class StockService:
                        "當日開盤後／市場追蹤（不可稱為開盤前）")
         instruction = (
             f"報告實際執行時刻為 {now.isoformat()}，模式為 {report_mode}。"
-            "不得把今天當昨天；不要說資料時間之後尚未收盤的事件已收盤。"
+            "不得把今天當昨天；若台灣市場今天已開盤，今日收盤資料只能在"
+            "收盤確認後引用。日報應稱最近交易日而非隨意稱昨日。"
+            "不要說資料時間之後尚未收盤的事件已收盤。"
             "未來行情不可預測為事實；所有行情都必須以來源的時間戳記為準。"
             "排除私人生活八卦、未經證實的人事變動及謠言，"
             "即使來源標題提及傳聞，也不能寫成已確認事件。"
@@ -284,11 +296,11 @@ class StockService:
             ], max_tokens=3800, metrics=metrics, stage="stock_brief")
             sections = []
             for heading, key in (
-                ("昨日台股與市場", "market"),
+                ("最近交易日台股與市場", "market"),
                 ("美股與夜盤", "overnight"),
                 ("重大財經事件", "events"),
                 ("法人與資金動向", "flows"),
-                ("今日開盤觀察", "watch"),
+                (("今日開盤觀察" if premarket else "後續市場觀察"), "watch"),
             ):
                 value = response.get(key)
                 if not isinstance(value, str) or not value.strip():
@@ -317,7 +329,8 @@ class StockService:
                 f"[{i}] {row['url']}" for i, row in enumerate(sources, 1)
             )
             briefing_name = ("台股開盤前情報" if premarket else
-                             "台股盤勢觀察（開盤後更新）")
+                             "台股盤後觀察" if now.hour >= 14 else
+                             "台股盤中觀察")
             header = (f"# 📈 {briefing_name}｜{now:%Y/%m/%d}\n"
                       f"-# 資料蒐集時間：{now:%Y/%m/%d %H:%M}（台灣時間）\n\n")
             note = "\n\n-# 歷史日線／新聞整理；不代表即時行情或投資建議"
@@ -352,10 +365,17 @@ class StockService:
                     issues = ["事實查核未能確認，請刪除沒有來源的精確數據與斷言"]
                 last_reason = "unsupported_claims"
                 print(f"STOCK_FACT_CHECK_REJECTED issues={len(issues)}", flush=True)
+                # Supply the rejected draft and concrete issues to the
+                # following rewrite. A fresh blind generation tended to
+                # repeat the same unsupported claims.
+                payload["previous_draft"] = response
+                payload["verification_issues"] = issues[:8]
                 instruction += (
-                    " 事實查核未通過，以下主張必須刪除或改成有來源支持的保守表述："
+                    " 此次是【修訂】而非重新寫作：逐項刪除下列不支持的主張，"
+                    "只能保留已有新聞簡述與 timestamp 支持的事實。"
+                    "禁止以改寫語氣掩飾不實內容，也不可新增未見來源的資料："
                     + json.dumps(issues[:8], ensure_ascii=False)
-                    + " 必須完全避免人物八卦與未經證實的消息。"
+                    + " 尤其不得加入人物私人八卦或未確認離職消息。"
                 )
                 continue
             last_reason = f"length_{len(body)}"

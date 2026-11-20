@@ -23,6 +23,40 @@ from .wide_discord import format_wide_messages
 
 TAIPEI = ZoneInfo("Asia/Taipei")
 
+# Unverified allegations about people, and fabricated download destinations,
+# must not be amplified by the automated Discord digest.
+PERSONAL_ALLEGATION = re.compile(
+    r"(?:黃仁勳|Jensen Huang|Jensen).{0,75}"
+    r"(?:離職|前執行長|回鍋|間諜|婚外情|return to Nvidia|spy|scandal)"
+    r"|(?:return to Nvidia|spy|scandal).{0,75}(?:黃仁勳|Jensen|Huang)",
+    re.I,
+)
+UNVERIFIED_DOMAIN = re.compile(
+    r"(?<![@\w])(?:https?://)?(?:[\w-]+\.)+(?:com|net|org|io|xyz|dev|ai|app|co|tw|gg)\b",
+    re.I,
+)
+
+
+def unsafe_tech_article(row):
+    """Fail closed for reputation allegations or LLM-invented destinations."""
+    title = str(row.get("published_title") or row.get("title") or "")
+    description = str(row.get("ai_description") or "")
+    if PERSONAL_ALLEGATION.search(title + " " + description):
+        return "unverified_personal_claim"
+    source_urls = [row.get("url") or "", *(row.get("related_urls") or [])]
+    source_urls.extend(extra.get("url") for extra in row.get("roundup_sources", []))
+    valid_hosts = {
+        (urllib.parse.urlsplit(url).hostname or "").lower()
+        for url in source_urls if isinstance(url, str)
+    }
+    for match in UNVERIFIED_DOMAIN.finditer(description):
+        host = match.group(0).removeprefix("https://").removeprefix("http://").lower()
+        if host not in valid_hosts and not any(
+            host.endswith("." + known) for known in valid_hosts if known
+        ):
+            return "unverified_external_domain"
+    return None
+
 
 @dataclass
 class DigestResult:
@@ -66,6 +100,17 @@ class TechService:
             raise RuntimeError("No technology stories selected")
         articles = editorial.draft(selected, metrics)
         editorial.validate_draft_bodies(articles)
+        safe_articles = []
+        for article in articles:
+            problem = unsafe_tech_article(article)
+            if problem:
+                print(f"TECH_UNSAFE_ARTICLE_SKIPPED id={article.get('id')} "
+                      f"reason={problem}", flush=True)
+                continue
+            safe_articles.append(article)
+        if not safe_articles:
+            raise RuntimeError("All technology drafts failed source safety checks")
+        articles = safe_articles
         categories = {key: val for key, val in editorial.CATEGORIES.items()
                       if key not in ("gaming", "tw_stock")}
         messages = format_wide_messages(articles, categories,

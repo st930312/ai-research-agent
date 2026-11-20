@@ -224,7 +224,8 @@ class StockService:
         # unconfirmed executive/personal scandals. Such headlines repeatedly
         # led the model to invent a purported CEO resignation.
         gossip = re.compile(
-            r"婚外情|緋聞|桃色|情變|私生活|間諜|戀情|醜聞|爆料", re.I
+            r"婚外情|緋聞|桃色|情變|私生活|間諜|戀情|醜聞|爆料|"
+            r"Anthropic.{0,35}上市|黃仁勳.{0,25}離職", re.I
         )
         stories = [row for row in candidates["news"]
                    if not gossip.search(
@@ -260,7 +261,8 @@ class StockService:
             "收盤確認後引用。日報應稱最近交易日而非隨意稱昨日。"
             "不要說資料時間之後尚未收盤的事件已收盤。"
             "未來行情不可預測為事實；所有行情都必須以來源的時間戳記為準。"
-            "排除私人生活八卦、未經證實的人事變動及謠言，"
+            "排除私人生活八卦、未經證實的人事變動及謠言。"
+            "不要報導 Anthropic 已上市或黃仁勳離職之類未獲證實消息。"
             "即使來源標題提及傳聞，也不能寫成已確認事件。"
             "沒有明確來源支持的價格、漲跌、政策因果或法人金額必須省略。"
             "不得為了湊篇幅補寫資訊。"
@@ -288,12 +290,20 @@ class StockService:
             "market_snapshot": snapshot,
             "news": indexed,
         }
+        # Only one initial generation. Failed claims get section-scoped edits,
+        # not a blind full rewrite which can reintroduce old hallucinations.
+        response = editorial._request_parsed_ai([
+            {"role": "system", "content": instruction},
+            {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+        ], max_tokens=3800, metrics=metrics, stage="stock_brief")
+        keys = ("market", "overnight", "events", "flows", "watch")
+        if not isinstance(response, dict):
+            raise RuntimeError("STOCK_BRIEF_INCOMPLETE reason=invalid_ai_response")
         last_reason = ""
-        for attempt in range(2):
-            response = editorial._request_parsed_ai([
-                {"role": "system", "content": instruction},
-                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
-            ], max_tokens=3800, metrics=metrics, stage="stock_brief")
+        for attempt in range(3):
+            if any(not isinstance(response.get(k), str) or
+                   not response[k].strip() for k in keys):
+                raise RuntimeError("STOCK_BRIEF_INCOMPLETE reason=missing_sections")
             sections = []
             for heading, key in (
                 ("最近交易日台股與市場", "market"),
@@ -302,31 +312,24 @@ class StockService:
                 ("法人與資金動向", "flows"),
                 (("今日開盤觀察" if premarket else "後續市場觀察"), "watch"),
             ):
-                value = response.get(key)
-                if not isinstance(value, str) or not value.strip():
-                    sections = []
-                    last_reason = f"missing_{key}"
-                    break
-                sections.append(f"**{heading}**\n{value.strip()}")
+                sections.append(f"**{heading}**\n{response[key].strip()}")
             raw_ids = response.get("source_ids") or []
             used = []
-            if not isinstance(raw_ids, list):
-                raw_ids = []
-            for ident in raw_ids:
-                try:
-                    ident = int(ident)
-                except (TypeError, ValueError):
-                    continue
-                if 1 <= ident <= len(indexed) and ident not in used:
-                    used.append(ident)
-                if len(used) == 3:
-                    break
+            if isinstance(raw_ids, list):
+                for ident in raw_ids:
+                    try:
+                        ident = int(ident)
+                    except (ValueError, TypeError):
+                        continue
+                    if 1 <= ident <= len(indexed) and ident not in used:
+                        used.append(ident)
+                    if len(used) == 3:
+                        break
             if stories and not used:
-                last_reason = "missing_provenance"
-                continue
-            sources = [indexed[i-1] for i in used]
+                raise RuntimeError("STOCK_BRIEF_INCOMPLETE reason=missing_provenance")
             citations = "\n".join(
-                f"[{i}] {row['url']}" for i, row in enumerate(sources, 1)
+                f"[{index}] {indexed[i-1]['url']}"
+                for index, i in enumerate(used, 1)
             )
             briefing_name = ("台股開盤前情報" if premarket else
                              "台股盤後觀察" if now.hour >= 14 else
@@ -335,24 +338,37 @@ class StockService:
                       f"-# 資料蒐集時間：{now:%Y/%m/%d %H:%M}（台灣時間）\n\n")
             note = "\n\n-# 歷史日線／新聞整理；不代表即時行情或投資建議"
             body = header + "\n\n".join(sections) + "\n\n" + citations + note
-            if len(body) <= 1900 and sum(len(s) for s in sections) >= 300:
+            issues = []
+            if len(body) > 1900 or sum(len(s) for s in sections) < 300:
+                last_reason = f"length_{len(body)}"
+                issues = [{
+                    "section": "all",
+                    "claim": "訊息長度不符合要求",
+                    "reason": "只精簡各段描述，保留已驗證事實與主要來源；不新增事實",
+                }]
+            else:
                 verification = editorial._request_parsed_ai([
                     {"role": "system", "content": (
-                        "你是嚴格的金融新聞事實核對員，不負責美化文字。"
-                        "逐句查核輸出是否可被給定新聞標題、簡述或帶時間戳的"
-                        "行情數據支持。特別抓出未證實人物離職、私人八卦、"
-                        "錯把今天寫昨天、把日線當即時盤中、憑空添加精確點數、"
-                        "由相關性推斷因果等問題。"
-                        "引述意見必須標為引述，缺少來源不能猜測。"
-                        '只回傳 JSON：{"supported":true,"issues":[]}。'
-                        "有任何實質未獲支持的斷言，supported 必須為 false，"
-                        "issues 列出待刪改語句。"
+                        "你是繁體中文金融新聞核對員，只負責找出實質性的事實錯誤。"
+                        "核對具體數字、日期、未證實人事傳聞、把相關性當成因果、"
+                        "將日線誤當盤中資料。新聞標題/簡述可支持一般敘述，"
+                        "但來源本身矛盾或有明顯虛假內容時不可照單全收。"
+                        "『可能、風險、值得觀察』等明確標示的不確定分析"
+                        "不是確定性主張，不要僅因語氣判為錯誤。"
+                        "不能只因為來源是單一媒體就否認其直接引述的數字，"
+                        "但應明示來源；無證據的細分金額必須刪除。"
+                        "每個問題都給出一個 section：market/overnight/events/"
+                        "flows/watch，及需要修正的 claim 和 reason。"
+                        '只回傳 JSON：{"supported":false,"issues":['
+                        '{"section":"events","claim":"錯誤的敘述","reason":"原因"}]}。'
+                        "如果沒有實質問題，回傳 supported=true、issues=[]。"
                     )},
                     {"role": "user", "content": json.dumps({
                         "now": now.isoformat(), "market_snapshot": snapshot,
-                        "news": indexed, "draft": body,
+                        "news": indexed, "draft": {
+                            k: response[k] for k in keys},
                     }, ensure_ascii=False)},
-                ], max_tokens=1800, metrics=metrics, stage="stock_verify")
+                ], max_tokens=1900, metrics=metrics, stage="stock_verify")
                 issues = verification.get("issues")
                 if verification.get("supported") is True and issues == []:
                     print(f"STOCK_BRIEF_READY chars={len(body)} "
@@ -361,28 +377,76 @@ class StockService:
                         "stock", [], [body], metrics,
                         daily_identity=now.date().isoformat()
                     )
-                if not isinstance(issues, list):
-                    issues = ["事實查核未能確認，請刪除沒有來源的精確數據與斷言"]
+                if not isinstance(issues, list) or not issues:
+                    issues = [{"section": "all",
+                               "claim": "查核結果不明確",
+                               "reason": "請保守移除無法驗證的斷言"}]
                 last_reason = "unsupported_claims"
-                print(f"STOCK_FACT_CHECK_REJECTED issues={len(issues)}", flush=True)
-                # Supply the rejected draft and concrete issues to the
-                # following rewrite. A fresh blind generation tended to
-                # repeat the same unsupported claims.
-                payload["previous_draft"] = response
-                payload["verification_issues"] = issues[:8]
-                instruction += (
-                    " 此次是【修訂】而非重新寫作：逐項刪除下列不支持的主張，"
-                    "只能保留已有新聞簡述與 timestamp 支持的事實。"
-                    "禁止以改寫語氣掩飾不實內容，也不可新增未見來源的資料："
-                    + json.dumps(issues[:8], ensure_ascii=False)
-                    + " 尤其不得加入人物私人八卦或未確認離職消息。"
-                )
-                continue
-            last_reason = f"length_{len(body)}"
-            instruction += (
-                " 上一次回覆超出單則 Discord 1900 字元預算或內容不足。"
-                "請濃縮成約 1200 字元，保留五段和引述的來源 ID。"
-            )
+                print(f"STOCK_FACT_CHECK_REJECTED issues={len(issues)} "
+                      f"attempt={attempt + 1}/3", flush=True)
+            if attempt == 2:
+                break
+            invalid_sections = set()
+            normalized_issues = []
+            for item in issues:
+                if isinstance(item, dict):
+                    section = item.get("section")
+                    claim = str(item.get("claim") or "")
+                    reason = str(item.get("reason") or "")
+                else:
+                    # Compatibility with older verifier responses which
+                    # returned only plain strings with no section tag.
+                    section = None
+                    claim = str(item)
+                    reason = "需依據來源改寫或刪除"
+                if section not in keys:
+                    matches = [key for key in keys if
+                               any(token in response[key] for token in
+                                   [claim[:24], claim[:14]] if token)]
+                    invalid_sections.update(matches or keys)
+                else:
+                    invalid_sections.add(section)
+                normalized_issues.append({
+                    "section": section or "unknown",
+                    "claim": claim[:260], "reason": reason[:260],
+                })
+            print(f"STOCK_REPAIR_SECTIONS sections={sorted(invalid_sections)} "
+                  f"attempt={attempt + 1}/2", flush=True)
+            repair = editorial._request_parsed_ai([
+                {"role": "system", "content": (
+                    "你是財經新聞的局部修稿員，不是重寫作者。"
+                    "必須只回傳指定段落的更新，不能更動其他段落。"
+                    "只刪除、縮短或修正查核器點出的未獲證實語句，"
+                    "保留其他已有來源支持的新聞與數字。"
+                    "若查核誤判，可改用『根據某來源報導』等精確引述，"
+                    "但未經證實人事消息、私人八卦和虛構上市資訊必須刪除。"
+                    "不可新增任何新人物、公司、數字、決策或因果敘述。"
+                    "只回傳 JSON 物件，格式："
+                    '{"updates":{"market":"修正後完整段落","events":"修正後完整段落"}}。'
+                    "updates 只能包含被要求修訂的 keys，每個值必須是完整段落。"
+                )},
+                {"role": "user", "content": json.dumps({
+                    "now": now.isoformat(),
+                    "allowed_keys": sorted(invalid_sections),
+                    "sections_to_fix": {
+                        key: response[key] for key in sorted(invalid_sections)},
+                    "issues": normalized_issues,
+                    "news": indexed,
+                    "market_snapshot": snapshot,
+                }, ensure_ascii=False)},
+            ], max_tokens=2500, metrics=metrics, stage="stock_repair")
+            updates = repair.get("updates")
+            if not isinstance(updates, dict) or (
+                set(updates) - invalid_sections
+            ) or not updates or any(
+                not isinstance(value, str) or not value.strip()
+                for value in updates.values()
+            ):
+                raise RuntimeError(
+                    "STOCK_BRIEF_INCOMPLETE reason=invalid_section_repair")
+            # Preserve exactly all untouched sections and original source IDs.
+            for key, value in updates.items():
+                response[key] = value.strip()
         raise RuntimeError(
             f"STOCK_BRIEF_INCOMPLETE reason={last_reason}; publication blocked"
         )

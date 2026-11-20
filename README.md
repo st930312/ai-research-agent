@@ -1,17 +1,49 @@
-# Technology Intelligence Feed V4.3 (publication safety & observability)
+# Technology Intelligence Feed V5 (concurrent services, serialized AI)
 
-15-story Traditional-Chinese technology, games, and Taiwan stock-market briefing. GitHub Actions + NVIDIA NIM + Discord wide-format Markdown.
+Traditional-Chinese technology news, independent gaming discovery, and Taiwan premarket briefing. One Python process with concurrent collection, one NVIDIA API queue, Neon publication tracking, and Discord Markdown.
 
-## News selection
+## V5 scheduled pipeline
+
+The existing GitHub Actions workflow runs at **03:00 Asia/Taipei**
+(UTC 19:00 on the previous calendar day); actual start may be delayed by
+GitHub's hosted scheduler. Entry point: `python -u -m src.digest_v5`.
+The legacy `src.editorial_digest` module remains intact for tests and reuse.
+
+- **TechService**: legacy HN, GitHub, technology RSS and global semiconductor /
+  fintech feeds. Reuses existing quotas and event audit, but no longer competes
+  with gaming or Taiwan-stock items for the same 20 shortlisted candidates.
+- **GamingService**: separate RSS selection and independently validated summaries
+  for each selected game, preserving every source link.
+- **StockService**: separate premarket brief using Yahoo Taiwan and CNA RSS,
+  optional financial news searches and timestamped daily index data if available.
+  Covers the previous Taiwan trading session, available US/overnight news,
+  flows, catalysts and opening risks. Never fabricates missing quotes or treats
+  last-known daily prices as real-time. A complete 1,900-character Discord
+  message includes headings and citations, under Discord's 2,000-character cap.
+  Per-date reservation allows a developing market event to be covered again
+  the next day without duplicate publication on the same date.
+
+Collection and preparation run concurrently in three threads within **one**
+Python process. Every NVIDIA HTTP attempt, including retries, passes through
+one shared FIFO `AIRequestScheduler` with one active call and configurable
+minimum interval (`NVIDIA_MIN_INTERVAL_SECONDS`, default 10 seconds).
+Completed services are published separately via the existing Neon ledger;
+one failed service does not cancel another successful service. Every service
+has its own success/failure log and independently verified Discord delivery.
+
+The manual workflow defaults to AI/Discord off; scheduled runs publish.
+V5 has unit tests and mocked integration checks. Actual model performance
+should still be monitored in subsequent scheduled runs.
+
+## Legacy V4 selection rules (inside TechService)
+
 
 Target 15 current stories (as many as 10–20 only when strong sources exist):
 - AI / LLM / Agent **4**
 - GitHub Open Source **2**
 - Software Engineering / DevOps **2**
 - Technology Industry / New Technology **3**
-- **Gaming discovery roundup: up to 1 slot** (1–3 noteworthy PC, console or mobile game and platform stories; omit if weak)
 - **Global semiconductor and fintech industry outlook: 1 slot** (integrate up to 4 distinct international news events, focus on demand, supply chain, competition and policy, not individual stock picks)
-- Taiwan Stock Market (all sectors) **1**
 
 AI writes up to 200–500 Traditional-Chinese characters per story, adjusted to available evidence. The system discourages padding or unsupported claims.
 

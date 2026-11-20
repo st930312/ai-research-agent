@@ -71,7 +71,7 @@ def split_long_article(piece, limit):
         parts.append(rest)
     return parts
 
-def format_wide_messages(articles, categories, issue_date=None):
+def format_wide_messages(articles, categories, issue_date=None, include_summary=True):
     """Use one heading per category; keep same-category chunks visually contiguous.
 
     Discord limits content to 2,000 characters. Split at article boundaries
@@ -84,7 +84,7 @@ def format_wide_messages(articles, categories, issue_date=None):
         f"-# 共 {total} 則｜繁體中文科技情報\n\n"
         "依分類閱讀：AI、開源、軟體工程、科技產業、電玩、金融科技、台灣股市。"
     )
-    messages = [SPACER + summary + ENDING]
+    messages = [SPACER + summary + ENDING] if include_summary else []
     for category, (heading, _quota, _color) in categories.items():
         group = [item for item in articles if item.get("category") == category]
         if not group:

@@ -51,6 +51,17 @@ class V5Tests(unittest.TestCase):
         scheduler.run(lambda: times.append(time.monotonic()))
         self.assertGreaterEqual(times[1] - times[0], 0.018)
 
+    def test_scheduler_cooldown_begins_after_completion(self):
+        scheduler = AIRequestScheduler(min_interval=0.02)
+        finished = []
+        started = []
+        def first():
+            time.sleep(0.008)
+            finished.append(time.monotonic())
+        scheduler.run(first)
+        scheduler.run(lambda: started.append(time.monotonic()))
+        self.assertGreaterEqual(started[0] - finished[0], 0.018)
+
     def test_legacy_collector_excludes_other_service_feeds(self):
         with patch("src.editorial_digest.hn_latest", return_value=[]), \
              patch("src.editorial_digest.github_discover", return_value=[]), \

@@ -132,7 +132,7 @@ class GamingService:
         editorial.validate_draft_bodies(articles)
         messages = format_wide_messages(
             articles, {"gaming": editorial.CATEGORIES["gaming"]},
-            issue_date=now.date())
+            issue_date=now.date(), include_summary=False)
         print(f"SERVICE_READY service=gaming sources={len(chosen)} "
               f"articles={len(articles)} messages={len(messages)}", flush=True)
         return DigestResult(self.name, articles, messages, metrics)

@@ -47,6 +47,30 @@ class PublicationLedger:
                             "check history/Discord before publishing again"
                         )
 
+    def reserve_daily_digest(self, service, date):
+        """Exactly one scheduled daily slot for a service (e.g. stock).
+
+        Use a stable date key rather than suppressing updates to a continuing
+        market event merely because its URL was reported the previous day.
+        """
+        import hashlib
+        key = hashlib.sha256(f"daily|{service}|{date}".encode("utf-8")).hexdigest()
+        with self.database.connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO publication_events
+                       (event_key, digest_key, status)
+                       VALUES (%s, %s, 'reserved')
+                       ON CONFLICT DO NOTHING
+                       RETURNING event_key""",
+                    (key, self.key),
+                )
+                if cur.fetchone() is None:
+                    raise RuntimeError(
+                        "DAILY_BRIEF_ALREADY_RESERVED: review previous Discord "
+                        f"delivery for {service} {date}"
+                    )
+
     def complete_articles(self):
         with self.database.connect() as conn:
             with conn.cursor() as cur:

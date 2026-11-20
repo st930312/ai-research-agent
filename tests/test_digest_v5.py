@@ -76,8 +76,12 @@ class V5Tests(unittest.TestCase):
             "watch": "今日觀察海外科技股、匯率及類股風險，不構成買賣建議。" * 3,
             "source_ids": [1],
         }
+        def model_answer(*args, **kwargs):
+            if kwargs.get("stage") == "stock_verify":
+                return {"supported": True, "issues": []}
+            return response
         with patch("src.digest_services.editorial._request_parsed_ai",
-                   return_value=response) as model:
+                   side_effect=model_answer) as model:
             result = service.build({"news": news, "snapshot": []}, [], now)
         self.assertEqual(result.service, "stock")
         self.assertEqual(len(result.messages), 1)
@@ -100,6 +104,28 @@ class V5Tests(unittest.TestCase):
                 service.build({"news": [{"title": "台股",
                      "url": "https://example.com/1",
                      "published_at": now.isoformat()}], "snapshot": []}, [], now)
+
+    def test_stock_rejects_unsupported_claims_before_publication(self):
+        service = StockService()
+        now = datetime(2026, 11, 20, 15, 0, tzinfo=ZoneInfo("Asia/Taipei"))
+        payload = {key: "市場有消息，需要以正式來源進行核對。" * 5
+                   for key in ("market", "overnight", "events", "flows", "watch")}
+        payload["source_ids"] = [1]
+        source = {"title": "台股市場", "description": "市場觀察",
+                  "url": "https://example.com/market",
+                  "published_at": now.isoformat()}
+        calls = []
+        def model_answer(*args, **kwargs):
+            calls.append(kwargs.get("stage"))
+            if kwargs.get("stage") == "stock_verify":
+                return {"supported": False, "issues": ["沒有來源支持的人事斷言"]}
+            return payload
+        with patch("src.digest_services.editorial._request_parsed_ai",
+                   side_effect=model_answer):
+            with self.assertRaisesRegex(RuntimeError, "unsupported_claims"):
+                service.build({"news": [source], "snapshot": []}, [], now)
+        self.assertEqual(calls,
+                         ["stock_brief", "stock_verify", "stock_brief", "stock_verify"])
 
     def test_failure_of_one_service_does_not_block_others(self):
         class Good:

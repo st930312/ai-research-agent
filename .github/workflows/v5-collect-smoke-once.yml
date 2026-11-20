@@ -1,4 +1,4 @@
-name: V5 Stock AI Preview (No Discord)
+name: V5 Stock Verified Preview (No Discord)
 on:
   push:
     branches: [main]
@@ -17,7 +17,7 @@ jobs:
           python-version: '3.12'
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
-      - name: Test actual stock briefing AI without Discord or Neon writes
+      - name: Check fact-audited stock briefing without Discord or Neon writes
         env:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           SEND_DISCORD: 'false'

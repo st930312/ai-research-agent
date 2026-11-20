@@ -92,10 +92,13 @@ def parse_feed(data, label, category, limit=6):
         **row, "source": "rss", "publisher": label, "suggested_category": category
     } for row in rows if row.get("title") and row.get("url", "").startswith("https://")]
 
-def rss_discover(limit=5, fetcher=fetch_rss):
+def rss_discover(limit=5, fetcher=fetch_rss, categories=None):
     results = []
     counts = {}
+    selected = set(FEEDS) if categories is None else set(categories)
     for category, feeds in FEEDS.items():
+        if category not in selected:
+            continue
         for label, url in feeds:
             try:
                 rows = parse_feed(with_backoff(lambda: fetcher(url), label=label), label, category,

@@ -138,6 +138,21 @@ class V5Tests(unittest.TestCase):
         self.assertEqual(calls,
                          ["stock_brief", "stock_verify", "stock_brief", "stock_verify"])
 
+    def test_gaming_format_omits_generic_technology_summary(self):
+        from src.wide_discord import format_wide_messages
+        articles = [{
+            "id": 1, "title": "今日遊戲情報精選",
+            "url": "https://example.com/game",
+            "category": "gaming", "body_status": "ok",
+            "ai_description": "### 遊戲一\\n\\n" + ("實際內容及玩法重點。" * 20),
+        }]
+        messages = format_wide_messages(
+            articles, {"gaming": editorial.CATEGORIES["gaming"]},
+            issue_date=datetime(2026, 11, 20).date(), include_summary=False)
+        self.assertEqual(len(messages), 1)
+        self.assertIn("今日遊戲情報精選", messages[0])
+        self.assertNotIn("科技快訊", messages[0])
+
     def test_failure_of_one_service_does_not_block_others(self):
         class Good:
             name = "good"

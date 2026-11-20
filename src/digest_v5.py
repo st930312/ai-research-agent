@@ -118,9 +118,13 @@ class DigestOrchestrator:
         print("V5_RUN_SUMMARY=" + json.dumps(
             {"success": succeeded, "failed": failed, "live_ai": live_ai,
              "discord": send_discord}, ensure_ascii=False), flush=True)
-        if not succeeded:
-            raise RuntimeError("All digest services failed")
-        # A partial failure does not undo independently completed publications.
+        if failed:
+            # All successfully sent messages stay sent. Returning a failed
+            # GitHub Actions status is essential when any category is missing.
+            raise RuntimeError(
+                "V5_PARTIAL_FAILURE: "
+                + json.dumps(failed, ensure_ascii=False)
+            )
         return {"success": succeeded, "failed": failed}
 
 

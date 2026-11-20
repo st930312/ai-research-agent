@@ -27,6 +27,15 @@ from .content_enrichment import enrich
 from .editorial_policy import industry_eligible
 from .tech_digest import API
 
+# The V5 orchestrator injects the single shared queue; standalone legacy calls
+# retain their original synchronous behavior.
+_AI_REQUEST_SCHEDULER = None
+
+def configure_ai_scheduler(scheduler):
+    global _AI_REQUEST_SCHEDULER
+    _AI_REQUEST_SCHEDULER = scheduler
+
+
 # Primary originally produced valid digests but later garbled JSON; fallback
 # 120B has passed two independent NVIDIA endpoint JSON smoke checks.
 MODEL = os.getenv("NVIDIA_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
@@ -91,11 +100,14 @@ def hn_latest(query, limit=6, fetcher=fetch_json):
         })
     return [row for row in rows if is_recent(row, 7)]
 
-def collect_candidates():
-    """Metadata-only phase: no full article downloads."""
+def collect_candidates(categories=None):
+    """Metadata-only phase; optionally collect only one service's categories."""
+    categories = set(CATEGORIES) if categories is None else set(categories)
     rows = []
     counts = {}
     for kind, query in HN_QUERIES:
+        if kind not in categories:
+            continue
         try:
             found = hn_latest(query, limit=6)
             counts[f"hn_{kind}"] = len(found)
@@ -106,6 +118,8 @@ def collect_candidates():
             counts[f"hn_{kind}"] = 0
             print(f"COLLECT_WARN hn_{kind} {type(exc).__name__}", flush=True)
     for kind in ("ai", "dev", "tech", "finance"):
+        if kind not in categories and not (kind == "ai" and "github" in categories):
+            continue
         try:
             found = github_discover(kind, limit=4)
             counts[f"github_{kind}"] = len(found)
@@ -115,12 +129,13 @@ def collect_candidates():
         except Exception as exc:
             counts[f"github_{kind}"] = 0
             print(f"COLLECT_WARN github_{kind} {type(exc).__name__}", flush=True)
-    rss_rows, rss_counts = rss_discover(limit=5)
+    rss_rows, rss_counts = rss_discover(limit=5, categories=categories)
     rows.extend(x for x in rss_rows if is_recent(x, 5))
     counts.update({"rss_" + name: count for name, count in rss_counts.items()})
-    release_rows, release_counts = github_releases(limit=6)
-    rows.extend(x for x in release_rows if is_recent(x, 14))
-    counts.update({"release_" + name: count for name, count in release_counts.items()})
+    if "github" in categories or "dev" in categories:
+        release_rows, release_counts = github_releases(limit=6)
+        rows.extend(x for x in release_rows if is_recent(x, 14))
+        counts.update({"release_" + name: count for name, count in release_counts.items()})
     rows = event_dedup(dedup(rows))[:MAX_CANDIDATES]
     for index, row in enumerate(rows, 1):
         row["id"] = index
@@ -262,7 +277,14 @@ def _request_ai(messages, max_tokens, metrics, model=None):
             _log_ai_diagnostic("raw_sse", "\n".join(raw_lines),
                                call_id=call_id, attempt=stream_attempt)
 
-    with_backoff(fetch_stream, retries=MAX_RETRIES, label="nvidia_api")
+    def scheduled_attempt():
+        # With a scheduler installed by V5, every HTTP attempt (including
+        # retries) rejoins the shared FIFO queue. Legacy usage is unchanged.
+        if _AI_REQUEST_SCHEDULER is None:
+            return fetch_stream()
+        return _AI_REQUEST_SCHEDULER.run(fetch_stream, label=active_model)
+
+    with_backoff(scheduled_attempt, retries=MAX_RETRIES, label="nvidia_api")
     metrics["latencies"].append({
         "ttfc": round(first, 2) if first is not None else None,
         "total": round(time.monotonic() - started, 2)

@@ -14,7 +14,7 @@ The legacy `src.editorial_digest` module remains intact for tests and reuse.
   with gaming or Taiwan-stock items for the same 20 shortlisted candidates.
 - **GamingService**: separate RSS selection and independently validated summaries
   for each selected game, preserving every source link.
-- **StockService**: separate premarket brief using Yahoo Taiwan and CNA RSS,
+- **StockService**: separate premarket/early-session/weekend brief using Yahoo Taiwan and CNA RSS,
   optional financial news searches and timestamped daily index data if available.
   Covers the previous Taiwan trading session, available US/overnight news,
   flows, catalysts and opening risks. Never fabricates missing quotes or treats
@@ -22,6 +22,32 @@ The legacy `src.editorial_digest` module remains intact for tests and reuse.
   message includes headings and citations, under Discord's 2,000-character cap.
   Per-date reservation allows a developing market event to be covered again
   the next day without duplicate publication on the same date.
+
+### Taiwan-stock briefing timing, evidence and safe preview
+
+StockService uses **Asia/Taipei** time and TWSE's official annual holiday list
+(best effort; failed calendar retrieval is logged and never treated as confirmed).
+Before 09:00 a trading day is *premarket*; 09:00–09:59 is *early-session* and
+**retains the premarket decision-making lens**, but does not imply the market
+has not opened. 10:00–13:29 is intraday, 13:30 onward postmarket. Weekends and
+confirmed exchange holidays use a non-trading-day market review. Latest expected
+trading session is only a freshness target: Yahoo's available close date can
+be older and must not be mislabeled as the current session.
+
+Market snapshots use a month of daily bars and preserve prior close,
+percentage change, quote source and exchange-local session date. They remain
+historical/non-live quotes. The prompt and deterministic safety check forbid
+invented MA/年線 numbers; do not derive technical indicators without full
+verified history. Failed AI verification receives scoped corrections. On final
+failure, only a reduced brief with problematic sections replaced by explicit
+data-unavailable notices **and passing another fact check** may publish; if it
+still fails, publication remains blocked.
+
+For a one-off human-review preview (not a production run):
+`SEND_STOCK_PREVIEW=true python -m src.stock_preview` uses existing
+NVIDIA/Discord secrets and **sends a visibly marked test message**, without
+Neon reservations or history changes. Do not use it in the daily schedule
+or run it without permission to send a test Discord message.
 
 Collection and preparation run concurrently in three threads within **one**
 Python process. Every NVIDIA HTTP attempt, including retries, passes through

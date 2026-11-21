@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from .core import dedup
+from .market_session import session_context
 from . import editorial_digest as editorial
 from .published_history import filter_published
 from .rss_source import rss_discover, parse_feed, fetch_rss
@@ -206,7 +207,7 @@ def fetch_market_snapshot(fetcher=None):
     for symbol, label in MARKET_SYMBOLS.items():
         encoded = urllib.parse.quote(symbol, safe="")
         url = ("https://query1.finance.yahoo.com/v8/finance/chart/"
-               f"{encoded}?range=5d&interval=1d")
+               f"{encoded}?range=1mo&interval=1d")
         req = urllib.request.Request(url, headers={
             "User-Agent": "Mozilla/5.0 (compatible; AIResearchAgent/0.9)",
             "Accept": "application/json",
@@ -223,10 +224,18 @@ def fetch_market_snapshot(fetcher=None):
                 continue
             stamp, price = data[-1]
             time_local = datetime.fromtimestamp(stamp, TAIPEI)
+            exchange_tz = (ZoneInfo("Asia/Taipei") if symbol == "^TWII"
+                           else ZoneInfo("America/New_York"))
+            previous = data[-2][1] if len(data) >= 2 else None
             result.append({
                 "market": label,
                 "symbol": symbol,
                 "price": round(price, 2),
+                "session_date": datetime.fromtimestamp(stamp, exchange_tz).date().isoformat(),
+                "previous_close": round(previous, 2) if previous is not None else None,
+                "change": round(price - previous, 2) if previous is not None else None,
+                "change_pct": round((price / previous - 1) * 100, 2)
+                              if previous and previous > 0 else None,
                 "time": time_local.isoformat(),
                 "status": "歷史日線／最後可得數據（非即時報價）",
                 "source": url,
@@ -297,11 +306,13 @@ class StockService:
             "publisher": row.get("publisher"),
             "url": row.get("url"),
         } for i, row in enumerate(ordered, 1)]
-        premarket = now.hour < 9
-        report_mode = ("開盤前" if premarket else
-                       "當日開盤後／市場追蹤（不可稱為開盤前）")
+        context = session_context(now)
+        report_mode = context.report_mode
         instruction = (
             f"報告實際執行時刻為 {now.isoformat()}，模式為 {report_mode}。"
+            f"本次編輯觀點：{context.editorial_lens}。"
+            f"最近預期台股交易日為 {context.latest_expected_tw_session.isoformat()}，"
+            "但必須用實際行情日期核對，不能僅憑預期交易日斷言已收盤。"
             "不得把今天當昨天；若台灣市場今天已開盤，今日收盤資料只能在"
             "收盤確認後引用。日報應稱最近交易日而非隨意稱昨日。"
             "不要說資料時間之後尚未收盤的事件已收盤。"
@@ -311,7 +322,7 @@ class StockService:
             "即使來源標題提及傳聞，也不能寫成已確認事件。"
             "沒有明確來源支持的價格、漲跌、政策因果或法人金額必須省略。"
             "不得為了湊篇幅補寫資訊。"
-            "你是台灣股市開盤前情報編輯，撰寫供早上開盤前閱讀的市場簡報，"
+            "你是台灣股市情報編輯，依本次實際報告模式撰寫市場簡報，"
             "不是單一股票推薦。繁體中文，根據提供的前交易日台股新聞、"
             "美股／夜盤消息、可得市場日線數據整理市場全貌。"
             "輸出五段：market（台股最近交易日大盤與產業）、"
@@ -319,6 +330,9 @@ class StockService:
             "flows（法人與資金）、watch（今天開盤需觀察的風險）。"
             "沒有證據的段落可簡短註明資料不足，絕對不得杜撰點數、漲跌幅、"
             "法人買賣超、因果或日期；不要將日線最後報價寫成即時盤中數據。"
+            "禁止自行估算年線、MA240/MA250、均線或其他技術指標；"
+            "若無已計算且標註基準日的技術指標，完全不要寫它的數值。"
+            "行情快照若僅有前一交易日，不能把新聞中更新行情當成已確認行情。"
             "若美股／台指夜盤尚未收盤，要明確標記盤中；若沒資料就不要推測。"
             "相同事件的次日新變化仍應報導；強調整體市場而非只談台積電。"
             "每段具體且有資訊量、區分事實和可能影響，不要投資建議。"
@@ -331,6 +345,8 @@ class StockService:
         )
         payload = {
             "as_of_taipei": now.isoformat(),
+            "report_mode": context.report_mode,
+            "latest_expected_tw_session": context.latest_expected_tw_session.isoformat(),
             "data_notice": "市場報價為最後可得日線，不保證為今日或即時；以 timestamp 為準",
             "market_snapshot": snapshot,
             "news": indexed,
@@ -355,7 +371,7 @@ class StockService:
                 ("美股與夜盤", "overnight"),
                 ("重大財經事件", "events"),
                 ("法人與資金動向", "flows"),
-                (("今日開盤觀察" if premarket else "後續市場觀察"), "watch"),
+                (context.watch_heading, "watch"),
             ):
                 sections.append(f"**{heading}**\n{response[key].strip()}")
             raw_ids = response.get("source_ids") or []
@@ -376,9 +392,7 @@ class StockService:
                 f"[{index}] {indexed[i-1]['url']}"
                 for index, i in enumerate(used, 1)
             )
-            briefing_name = ("台股開盤前情報" if premarket else
-                             "台股盤後觀察" if now.hour >= 14 else
-                             "台股盤中觀察")
+            briefing_name = context.heading
             header = (f"# 📈 {briefing_name}｜{now:%Y/%m/%d}\n"
                       f"-# 資料蒐集時間：{now:%Y/%m/%d %H:%M}（台灣時間）\n\n")
             note = "\n\n-# 歷史日線／新聞整理；不代表即時行情或投資建議"

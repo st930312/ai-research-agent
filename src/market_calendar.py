@@ -40,7 +40,7 @@ def fetch_twse_holidays(year: int, fetcher=None) -> frozenset[date]:
     """Fail closed to unknown calendar, not fabricated holidays."""
     base = "https://www.twse.com.tw/rwd/zh/holidaySchedule/holidaySchedule"
     url = base + "?" + urllib.parse.urlencode({
-        "response": "json", "queryYear": str(year),
+        "response": "json", "date": str(year),
     })
     request = urllib.request.Request(url, headers={
         "User-Agent": "Mozilla/5.0 (compatible; AIResearchAgent/1.0)",

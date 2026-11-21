@@ -58,6 +58,29 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(tw["change"], -2000)
         self.assertAlmostEqual(tw["change_pct"], -5.26)
 
+    def test_sunday_editorial_guidance_is_explainable_and_conditional(self):
+        now = datetime(2026, 11, 22, 8, 30, tzinfo=TZ)
+        draft = {key: "已有新聞指出市場出現變化，後續仍有待觀察。" * 6
+                 for key in ("market", "overnight", "events", "flows", "watch")}
+        draft["source_ids"] = [1]
+        seen = []
+        def answer(messages, **kwargs):
+            if kwargs["stage"] == "stock_brief":
+                seen.append(messages[0]["content"])
+                return draft
+            return {"supported": True, "issues": []}
+        with patch("src.digest_services.editorial._request_parsed_ai",
+                   side_effect=answer):
+            result = StockService().build({"news": [{
+                "title": "市場消息", "description": "市場變化",
+                "url": "https://example.com/stock",
+                "published_at": now.isoformat()}], "snapshot": []}, [], now)
+        self.assertIn("台股週末市場回顧", result.messages[0])
+        self.assertIn("下個交易日觀察", result.messages[0])
+        self.assertIn("發生什麼、為何重要", seen[0])
+        self.assertIn("2～3 項具體可觀察", seen[0])
+        self.assertIn("不可推薦個股買賣", seen[0])
+
     def test_stock_prompt_has_session_mode(self):
         now = datetime(2026, 11, 20, 9, 30, tzinfo=TZ)
         draft = {key: "依資料觀察，市場仍需注意國際消息。" * 7

@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 
 from .core import dedup
 from .market_session import session_context
+from .stock_safety import unsupported_indicator_issues, safe_redact_sections
 from . import editorial_digest as editorial
 from .published_history import filter_published
 from .rss_source import rss_discover, parse_feed, fetch_rss
@@ -397,7 +398,7 @@ class StockService:
                       f"-# 資料蒐集時間：{now:%Y/%m/%d %H:%M}（台灣時間）\n\n")
             note = "\n\n-# 歷史日線／新聞整理；不代表即時行情或投資建議"
             body = header + "\n\n".join(sections) + "\n\n" + citations + note
-            issues = []
+            issues = unsupported_indicator_issues(response)
             if len(body) > 1900 or sum(len(s) for s in sections) < 300:
                 last_reason = f"length_{len(body)}"
                 issues = [{
@@ -405,7 +406,7 @@ class StockService:
                     "claim": "訊息長度不符合要求",
                     "reason": "只精簡各段描述，保留已驗證事實與主要來源；不新增事實",
                 }]
-            else:
+            elif not issues:
                 verification = editorial._request_parsed_ai([
                     {"role": "system", "content": (
                         "你是繁體中文金融新聞核對員，只負責找出實質性的事實錯誤。"
@@ -444,6 +445,52 @@ class StockService:
                 print(f"STOCK_FACT_CHECK_REJECTED issues={len(issues)} "
                       f"attempt={attempt + 1}/3", flush=True)
             if attempt == 2:
+                # Preserve verified sections where possible. Replace rejected
+                # sections with transparent, non-factual disclaimers and give
+                # the verifier one final chance to approve the reduced brief.
+                rejected = {x.get("section") for x in issues
+                            if isinstance(x, dict) and x.get("section") in keys}
+                retained = set(keys) - rejected
+                if len(retained) >= 3 and rejected:
+                    fallback = safe_redact_sections(response, rejected)
+                    fallback_issues = unsupported_indicator_issues(fallback)
+                    if not fallback_issues:
+                        fallback_verify = editorial._request_parsed_ai([
+                            {"role": "system", "content": (
+                                "嚴格確認以下縮減版報告不含未經支持的事實斷言。"
+                                "資料不足免責文字可接受，但仍需核對所有保留段落。"
+                                '只回傳 JSON：{"supported":true,"issues":[]} 或'
+                                '{"supported":false,"issues":[{"section":"market",'
+                                '"claim":"...","reason":"..."}]}。'
+                            )},
+                            {"role": "user", "content": json.dumps({
+                                "now": now.isoformat(),
+                                "market_snapshot": snapshot,
+                                "news": indexed,
+                                "draft": {k: fallback[k] for k in keys},
+                            }, ensure_ascii=False)},
+                        ], max_tokens=1600, metrics=metrics, stage="stock_fallback_verify")
+                        if (isinstance(fallback_verify, dict)
+                                and fallback_verify.get("supported") is True
+                                and fallback_verify.get("issues") == []):
+                            fallback_sections = []
+                            for heading, key in (
+                                ("最近交易日台股與市場", "market"),
+                                ("美股與夜盤", "overnight"),
+                                ("重大財經事件", "events"),
+                                ("法人與資金動向", "flows"),
+                                (context.watch_heading, "watch"),
+                            ):
+                                fallback_sections.append(
+                                    f"**{heading}**\n{fallback[key].strip()}")
+                            fallback_body = (header + "\n\n".join(fallback_sections)
+                                             + "\n\n" + citations + note)
+                            if 300 <= len(fallback_body) <= 1900:
+                                print("STOCK_SAFE_FALLBACK sections="
+                                      + ",".join(sorted(rejected)), flush=True)
+                                return DigestResult(
+                                    "stock", [], [fallback_body], metrics,
+                                    daily_identity=now.date().isoformat())
                 break
             invalid_sections = set()
             normalized_issues = []

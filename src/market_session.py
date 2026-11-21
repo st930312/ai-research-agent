@@ -48,7 +48,8 @@ def session_context(now: datetime, closed_dates: Collection[date] | None = None)
 
     if not is_open_day:
         mode, title, watch, lens = (
-            "weekend_review", "台股週末市場回顧",
+            "weekend_review" if weekend else "holiday_review",
+            "台股週末市場回顧" if weekend else "台股休市市場回顧",
             "下個交易日觀察", "回顧最近完成的交易日與隔夜海外新聞；不要說今天開盤")
     elif local.time() < time(9):
         mode, title, watch, lens = (

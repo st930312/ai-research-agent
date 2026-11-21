@@ -476,7 +476,7 @@ class StockService:
                 rejected = {x.get("section") for x in issues
                             if isinstance(x, dict) and x.get("section") in keys}
                 retained = set(keys) - rejected
-                if len(retained) >= 3 and rejected:
+                if retained and rejected:
                     fallback = safe_redact_sections(response, rejected)
                     fallback_issues = unsupported_indicator_issues(fallback)
                     if not fallback_issues:

@@ -34,6 +34,12 @@ confirmed exchange holidays use a non-trading-day market review. Latest expected
 trading session is only a freshness target: Yahoo's available close date can
 be older and must not be mislabeled as the current session.
 
+Weekend and holiday briefings retain the same source-based market summary, but
+also explain important financial terminology and plausible **conditional** implications
+in plain Traditional Chinese. The `watch` section includes 2–3 specific
+next-session signals to check and why they matter, **not** specific buy/sell
+instructions, entry/exit prices, guaranteed predictions, or unsupported figures.
+
 Market snapshots use a month of daily bars and preserve prior close,
 percentage change, quote source and exchange-local session date. They remain
 historical/non-live quotes. The prompt and deterministic safety check forbid

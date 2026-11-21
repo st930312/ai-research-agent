@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, date, time, timedelta
+from collections.abc import Collection
 
 
 @dataclass(frozen=True)
@@ -16,13 +17,14 @@ class MarketSessionContext:
     report_mode: str
     is_weekend: bool
     is_tw_trading_day: bool
+    calendar_verified: bool
     latest_expected_tw_session: date
     heading: str
     watch_heading: str
     editorial_lens: str
 
 
-def session_context(now: datetime) -> MarketSessionContext:
+def session_context(now: datetime, closed_dates: Collection[date] | None = None) -> MarketSessionContext:
     """Choose a report lens; never mistake the early session for pre-open.
 
     Weekdays are *potential* TW trading days (not holiday-calendar confirmed).
@@ -35,13 +37,16 @@ def session_context(now: datetime) -> MarketSessionContext:
     local = now.astimezone(ZoneInfo("Asia/Taipei"))
     today = local.date()
     weekend = today.weekday() >= 5
+    calendar_verified = closed_dates is not None
+    closed = set(closed_dates or ())
+    is_open_day = not weekend and today not in closed
     expected = today
-    if weekend or local.time() < time(13, 30):
+    if not is_open_day or local.time() < time(13, 30):
         expected -= timedelta(days=1)
-    while expected.weekday() >= 5:
+    while expected.weekday() >= 5 or expected in closed:
         expected -= timedelta(days=1)
 
-    if weekend:
+    if not is_open_day:
         mode, title, watch, lens = (
             "weekend_review", "台股週末市場回顧",
             "下個交易日觀察", "回顧最近完成的交易日與隔夜海外新聞；不要說今天開盤")
@@ -61,5 +66,5 @@ def session_context(now: datetime) -> MarketSessionContext:
         mode, title, watch, lens = (
             "postmarket", "台股盤後觀察",
             "下個交易日觀察", "僅在已取得當日確認收盤行情時引用當日收盤數據")
-    return MarketSessionContext(today, mode, weekend, not weekend,
-                                expected, title, watch, lens)
+    return MarketSessionContext(today, mode, weekend, is_open_day,
+                                calendar_verified, expected, title, watch, lens)

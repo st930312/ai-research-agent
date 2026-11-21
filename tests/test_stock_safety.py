@@ -4,7 +4,7 @@ from datetime import date, datetime
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
-from src.market_calendar import parse_twse_holidays
+from src.market_calendar import parse_twse_holidays, fetch_twse_holidays
 from src.market_session import session_context
 from src.stock_safety import unsupported_indicator_issues, safe_redact_sections
 from src.digest_services import StockService
@@ -27,10 +27,33 @@ class MarketCalendarTests(unittest.TestCase):
     def test_market_holiday_uses_review_not_premarket(self):
         context = session_context(datetime(2026, 11, 23, 9, 30, tzinfo=TZ),
                                   closed_dates={date(2026, 11, 23)})
-        self.assertEqual(context.report_mode, "weekend_review")
+        self.assertEqual(context.report_mode, "holiday_review")
         self.assertFalse(context.is_tw_trading_day)
         self.assertTrue(context.calendar_verified)
         self.assertEqual(context.latest_expected_tw_session, date(2026, 11, 20))
+
+    def test_holiday_fetch_uses_gregorian_date_parameter(self):
+        import urllib.parse
+        called = []
+        payload = {"stat": "ok", "data": [
+            ["2026-01-01", "中華民國開國紀念日", "放假"],
+            ["2026-01-02", "國曆新年開始交易日", "開市"],
+        ]}
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, *_):
+                return False
+            def read(self, *_):
+                import json
+                return json.dumps(payload).encode("utf-8")
+        def fetcher(request, timeout):
+            called.append(request.full_url)
+            return FakeResponse()
+        result = fetch_twse_holidays(2026, fetcher=fetcher)
+        self.assertEqual(result, frozenset({date(2026, 1, 1)}))
+        self.assertEqual(urllib.parse.parse_qs(
+            urllib.parse.urlsplit(called[0]).query).get("date"), ["2026"])
 
     def test_invalid_official_schedule_fails_not_guesses(self):
         with self.assertRaises(ValueError):

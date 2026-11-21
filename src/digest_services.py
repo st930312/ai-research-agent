@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 
 from .core import dedup
 from .market_session import session_context
+from .market_calendar import fetch_twse_holidays
 from .stock_safety import unsupported_indicator_issues, safe_redact_sections
 from . import editorial_digest as editorial
 from .published_history import filter_published
@@ -266,9 +267,18 @@ class StockService:
             row for row in rows if editorial.is_recent(row, 3)
         ]))
         snapshot = fetch_market_snapshot()
+        try:
+            closed_dates = sorted(d.isoformat() for d in fetch_twse_holidays(
+                datetime.now(TAIPEI).year))
+            calendar_verified = True
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            closed_dates = []
+            calendar_verified = False
+            print(f"TWSE_CALENDAR_UNAVAILABLE type={type(exc).__name__}", flush=True)
         print(f"SERVICE_SOURCES service=stock rss={counts} "
               f"news={len(news)} quotes={len(snapshot)}", flush=True)
-        return {"news": news, "snapshot": snapshot}
+        return {"news": news, "snapshot": snapshot,
+                "closed_dates": closed_dates, "calendar_verified": calendar_verified}
 
     def build(self, candidates, history, now):
         metrics = {"calls": 0, "latencies": []}
@@ -307,11 +317,23 @@ class StockService:
             "publisher": row.get("publisher"),
             "url": row.get("url"),
         } for i, row in enumerate(ordered, 1)]
-        context = session_context(now)
+        closed_dates = None
+        if candidates.get("calendar_verified"):
+            from datetime import date as _date
+            closed_dates = {_date.fromisoformat(d)
+                            for d in candidates.get("closed_dates", [])}
+        context = session_context(now, closed_dates=closed_dates)
         report_mode = context.report_mode
+        expected_session = context.latest_expected_tw_session.isoformat()
+        quote_warnings = []
+        for quote in snapshot:
+            if quote.get("symbol") == "^TWII" and quote.get("session_date") != expected_session:
+                quote_warnings.append("台股最近確認行情日期與預期交易日不同；不得稱為最新收盤數據")
         instruction = (
             f"報告實際執行時刻為 {now.isoformat()}，模式為 {report_mode}。"
             f"本次編輯觀點：{context.editorial_lens}。"
+            "交易日曆未完成官方確認時，只能以預期日期描述而不可斷言當日開市。"
+            "行情可用性和時間戳優先於新聞標題中的行情數字。"
             f"最近預期台股交易日為 {context.latest_expected_tw_session.isoformat()}，"
             "但必須用實際行情日期核對，不能僅憑預期交易日斷言已收盤。"
             "不得把今天當昨天；若台灣市場今天已開盤，今日收盤資料只能在"
@@ -348,6 +370,8 @@ class StockService:
             "as_of_taipei": now.isoformat(),
             "report_mode": context.report_mode,
             "latest_expected_tw_session": context.latest_expected_tw_session.isoformat(),
+            "twse_calendar_verified": context.calendar_verified,
+            "quote_warnings": quote_warnings,
             "data_notice": "市場報價為最後可得日線，不保證為今日或即時；以 timestamp 為準",
             "market_snapshot": snapshot,
             "news": indexed,
@@ -425,6 +449,7 @@ class StockService:
                     )},
                     {"role": "user", "content": json.dumps({
                         "now": now.isoformat(), "market_snapshot": snapshot,
+                        "quote_warnings": quote_warnings,
                         "news": indexed, "draft": {
                             k: response[k] for k in keys},
                     }, ensure_ascii=False)},

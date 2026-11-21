@@ -141,7 +141,8 @@ class V5Tests(unittest.TestCase):
                 service.build({"news": [source], "snapshot": []}, [], now)
         self.assertEqual(calls,
                          ["stock_brief", "stock_verify", "stock_repair",
-                          "stock_verify", "stock_repair", "stock_verify"])
+                          "stock_verify", "stock_repair", "stock_verify",
+                          "stock_fallback_verify"])
 
     def test_stock_surgical_repair_preserves_verified_sections(self):
         service = StockService()
